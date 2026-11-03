@@ -48,18 +48,47 @@ Pattern = List[Tuple[float, object, float, float]]
 BEATS = 4   # every cue is in 4/4
 
 
+class Pat(list):
+    """A pattern (list of (start, note, length, vel) events) that remembers how many whole
+    bars it spans, so `cat`/`rep` can lay parts bar after bar even when the last note of a
+    part rings past its bar line (an arpeggio note, a rolled chord on beat 3, ...) or when a
+    part ends with a bar of rests."""
+    bars = 0
+
+
+def _with_bars(events, bars: int) -> "Pat":
+    p = Pat(events)
+    p.bars = int(bars)
+    return p
+
+
+def bars_of(pattern: Pattern) -> int:
+    """Whole bars a pattern spans: its declared count (P, bassline, arp, chord_bars, cat, rep
+    and anything derived from them with vel/ramp/trn) or, for a plain event list, the bar
+    holding the last note START (a tail ringing past the bar line claims no extra bar)."""
+    b = getattr(pattern, "bars", 0)
+    if b:
+        return int(b)
+    if not pattern:
+        return 1
+    last = max(s for s, _n, _l, _v in pattern)
+    return int(math.floor(last / BEATS + 1e-9)) + 1
+
+
 # ------------------------------------------------------------------------------------------
 # Pattern helpers (thin layer over ak.parse_pattern with bar-length validation)
 # ------------------------------------------------------------------------------------------
 def P(text: str, step: float = 0.5, velocity: float = 1.0, soft: float = 0.6, accent: float = 1.0) -> Pattern:
     """parse_pattern with a safety net: every '|'-separated bar must hold exactly 4/step
-    tokens, so a typo cannot silently shift the rest of the track."""
+    tokens, so a typo cannot silently shift the rest of the track.  The returned pattern
+    knows its bar count (bars of pure rests included)."""
     per_bar = int(round(BEATS / step))
-    for i, b in enumerate(t for t in text.split("|") if t.strip()):
+    segs = [t for t in text.split("|") if t.strip()]
+    for i, b in enumerate(segs):
         n = len(b.split())
         if n != per_bar:
             raise ValueError("bar %d has %d tokens, expected %d (step %g): %r" % (i, n, per_bar, step, b.strip()))
-    return ak.parse_pattern(text, step, velocity=velocity, soft=soft, accent=accent)
+    return _with_bars(ak.parse_pattern(text, step, velocity=velocity, soft=soft, accent=accent), len(segs))
 
 
 def at(pattern: Pattern, bar_index: int) -> Pattern:
@@ -68,38 +97,41 @@ def at(pattern: Pattern, bar_index: int) -> Pattern:
 
 
 def cat(*parts: Pattern) -> Pattern:
-    """Concatenate patterns bar after bar (each part is padded to whole bars)."""
-    out: Pattern = []
+    """Concatenate patterns bar after bar (each part occupies bars_of(part) whole bars)."""
+    out: list = []
     pos = 0.0
+    total = 0
     for p in parts:
         out.extend(ak.shift_pattern(p, pos))
-        pos += math.ceil((ak.pattern_length(p) or BEATS) / BEATS - 1e-9) * BEATS
-    return out
+        nb = bars_of(p)
+        pos += nb * BEATS
+        total += nb
+    return _with_bars(out, total)
 
 
 def rep(pattern: Pattern, times: int, bars: Optional[int] = None) -> Pattern:
-    """Repeat a pattern every `bars` bars (default: its own length)."""
-    length = (bars * BEATS) if bars else math.ceil(ak.pattern_length(pattern) / BEATS - 1e-9) * BEATS
-    return ak.repeat_pattern(pattern, times, length)
+    """Repeat a pattern every `bars` bars (default: its own bar count)."""
+    nb = bars if bars else bars_of(pattern)
+    return _with_bars(ak.repeat_pattern(pattern, times, nb * BEATS), nb * times)
 
 
 def merge(*patterns: Pattern) -> Pattern:
-    return ak.merge_patterns(*patterns)
+    return _with_bars(ak.merge_patterns(*patterns), max(bars_of(p) for p in patterns) if patterns else 0)
 
 
 def vel(pattern: Pattern, k: float) -> Pattern:
     """Scale every velocity (phrase dynamics)."""
-    return [(s, n, l, v * k) for s, n, l, v in pattern]
+    return _with_bars([(s, n, l, v * k) for s, n, l, v in pattern], bars_of(pattern))
 
 
 def ramp(pattern: Pattern, v0: float, v1: float) -> Pattern:
     """Linear crescendo/diminuendo over the pattern's own length."""
     L = max(ak.pattern_length(pattern), 1e-9)
-    return [(s, n, l, v * (v0 + (v1 - v0) * s / L)) for s, n, l, v in pattern]
+    return _with_bars([(s, n, l, v * (v0 + (v1 - v0) * s / L)) for s, n, l, v in pattern], bars_of(pattern))
 
 
 def trn(pattern: Pattern, semitones: int) -> Pattern:
-    return ak.transpose_pattern(pattern, semitones)
+    return _with_bars(ak.transpose_pattern(pattern, semitones), bars_of(pattern))
 
 
 def hits(beats: Sequence[float], length: float = 0.25, velocity: float = 1.0) -> Pattern:
@@ -142,7 +174,7 @@ def bassline(roots: Sequence[str], template: str, step: float = 0.5, velocity: f
                 v = float(vs)
             out.append((b * BEATS + i * step, base + _SYMBOLIC[tok], step, v))
             last = len(out) - 1
-    return out
+    return _with_bars(out, len(roots))
 
 
 def arp(voicing: Sequence[str], order: Sequence[int], step: float = 0.5, velocity: float = 1.0,
@@ -155,7 +187,7 @@ def arp(voicing: Sequence[str], order: Sequence[int], step: float = 0.5, velocit
             continue
         v = velocity * (accents[i] if accents else 1.0)
         out.append((i * step, voicing[idx], L, v))
-    return out
+    return _with_bars(out, max(1, int(math.ceil(len(order) * step / BEATS - 1e-9))))
 
 
 def strum(voicing: Sequence[str], start: float, length: float, velocity: float = 1.0,
@@ -171,11 +203,11 @@ def strum(voicing: Sequence[str], start: float, length: float, velocity: float =
 def chord_bars(voicings: Sequence[Sequence[str]], starts: Sequence[float] = (0.0, 2.0),
                length: float = 1.9, velocity: float = 1.0, spread: float = 0.045) -> Pattern:
     """Strummed chords, one voicing per bar, at the given beats within each bar."""
-    out: Pattern = []
+    out: list = []
     for b, vo in enumerate(voicings):
         for k, s in enumerate(starts):
             out.extend(strum(vo, b * BEATS + s, length, velocity * (1.0 if k == 0 else 0.8), spread))
-    return out
+    return _with_bars(out, len(voicings))
 
 
 # ------------------------------------------------------------------------------------------
@@ -234,7 +266,25 @@ def rev(decay: float, mix: float, damp: float = 0.5, predelay: float = 0.0) -> C
 
 
 def lp(hz: float, order: int = 1) -> Callable:
+    """Track-level one-pole lowpass (track buffers start at a note onset, so the filter's
+    zero initial state is harmless there)."""
     return lambda x: ak.lowpass(x, hz, order=order)
+
+
+MASTER_PREROLL = 4096   # samples; far longer than the impulse response of any master lowpass
+
+
+def master_lp(hz: float, order: int = 1) -> Callable:
+    """Loop-safe master lowpass: the filter is primed with the END of the mix before it
+    processes the start, so sample 0 is filtered with the same state it would have after
+    the loop wraps.  (A plain causal filter starts from zero state and dips the first few
+    samples -- a faint click at every loop point.)"""
+    def f(x):
+        x = ak._as_signal(x)
+        n = min(MASTER_PREROLL, len(x))
+        y = ak.lowpass(np.concatenate([x[len(x) - n:], x]), hz, order=order)
+        return y[n:]
+    return f
 
 
 def chain(*fns: Callable) -> Callable:
@@ -323,7 +373,7 @@ def build_town(audio_root: str, tmp_dir: str) -> str:
     sh_dyn = cat(vel(rep(sh[:8], 8), 0.85), vel(rep(sh[:8], 8), 0.7), vel(rep(sh[:8], 8), 1.0), vel(rep(sh[:8], 8), 0.9))
     seq.add_track("shaker", ak.shaker, sh_dyn, volume=0.3, pan=-0.3, fx=lp(9000, 2))
 
-    seq.master_fx.append(lp(13000))
+    seq.master_fx.append(master_lp(13000))
     return save_loop(seq, "Town", audio_root, tmp_dir)
 
 
@@ -387,7 +437,7 @@ def build_world(audio_root: str, tmp_dir: str) -> str:
     seq.add_track("shaker", ak.shaker, cat(vel(sh[:64], 0.7), vel(sh[:64], 0.85), vel(sh[:64], 1.0), vel(sh[:64], 0.9)),
                   volume=0.28, pan=-0.3, fx=lp(9000, 2))
 
-    seq.master_fx.append(lp(13000))
+    seq.master_fx.append(master_lp(13000))
     return save_loop(seq, "World", audio_root, tmp_dir)
 
 
@@ -451,7 +501,7 @@ def build_battle(audio_root: str, tmp_dir: str) -> str:
     seq.add_track("taiko_mid", ak.instrument(ak.taiko, kind="mid"), merge(mid, fill), volume=0.55, pan=0.15)
     seq.add_track("rim", ak.instrument(ak.taiko, kind="rim"), rim, volume=0.32, pan=-0.3, fx=lp(10000))
 
-    seq.master_fx.append(chain(lambda x: ak.soft_clip(x, 1.3), lp(15000)))
+    seq.master_fx.append(chain(lambda x: ak.soft_clip(x, 1.3), master_lp(15000)))
     return save_loop(seq, "Battle", audio_root, tmp_dir)
 
 
@@ -496,7 +546,7 @@ def build_mountain(audio_root: str, tmp_dir: str) -> str:
     tk = merge(at(hits([0.0], 1.0, .5), 0), at(hits([0.0], 1.0, .45), 16), at(hits([2.0], 1.0, .35), 24))
     seq.add_track("taiko", ak.instrument(ak.taiko, kind="low"), tk, volume=0.4, fx=rev(3.0, 0.45, 0.7))
 
-    seq.master_fx.append(lp(11000))
+    seq.master_fx.append(master_lp(11000))
     return save_loop(seq, "Mountain", audio_root, tmp_dir)
 
 
@@ -544,7 +594,7 @@ def build_cave(audio_root: str, tmp_dir: str) -> str:
     seq.add_track("zither", ak.instrument(ak.zither, bright=0.3, release=1.5), z, volume=0.6, pan=0.0,
                   fx=rev(3.5, 0.45, 0.6))
 
-    seq.master_fx.append(lp(9000))
+    seq.master_fx.append(master_lp(9000))
     return save_loop(seq, "Cave", audio_root, tmp_dir)
 
 
@@ -596,7 +646,7 @@ def build_sect(audio_root: str, tmp_dir: str) -> str:
     seq.add_track("bell", ak.instrument(ak.temple_bell, freq=196.0, dur=3.5),
                   merge(at(hits([0.0], 1.0, .35), 0), at(hits([0.0], 1.0, .4), 16)), volume=0.45, pan=0.1)
 
-    seq.master_fx.append(lp(12000))
+    seq.master_fx.append(master_lp(12000))
     return save_loop(seq, "Sect", audio_root, tmp_dir)
 
 
@@ -646,7 +696,7 @@ def build_dark(audio_root: str, tmp_dir: str) -> str:
     zl = [(b * 4.0, r, 1.5, 0.5) for b, r in list(enumerate(rootsA + rootsA + rootsB + rootsA)) if 8 <= b < 16 or b >= 24]
     seq.add_track("zither", ak.instrument(ak.zither, bright=0.3, release=0.8), zl, volume=0.5, pan=-0.2)
 
-    seq.master_fx.append(lp(10000))
+    seq.master_fx.append(master_lp(10000))
     return save_loop(seq, "Dark", audio_root, tmp_dir)
 
 
@@ -694,7 +744,7 @@ def build_night(audio_root: str, tmp_dir: str) -> str:
     pad = [(b * 4.0, roots[c], 4.3, 0.5) for b, c in enumerate(chA + chA + chB + chA) if b >= 8]
     seq.add_track("pad", ak.instrument(ak.pad_synth, attack=0.8, release=1.0, cutoff=600.0), pad, volume=0.9, pan=0.0)
 
-    seq.master_fx.append(lp(11000))
+    seq.master_fx.append(master_lp(11000))
     return save_loop(seq, "Night", audio_root, tmp_dir)
 
 
@@ -752,7 +802,7 @@ def build_demon(audio_root: str, tmp_dir: str) -> str:
              "C2 C2@0.6 -- C2 F#2@0.8 -- C2 C2@0.6 | C2 -- C2@0.7 G2 -- C#2 C2@0.8 --", 0.5)
     seq.add_track("bass", ak.nes_bass_tri, rep(bass, 4), volume=0.45, pan=0.0, fx=lp(1500))
 
-    seq.master_fx.append(chain(lambda x: ak.soft_clip(x, 1.2), lp(12000)))
+    seq.master_fx.append(chain(lambda x: ak.soft_clip(x, 1.2), master_lp(12000)))
     return save_loop(seq, "Demon", audio_root, tmp_dir)
 
 
@@ -802,7 +852,7 @@ def build_title(audio_root: str, tmp_dir: str) -> str:
     tk = merge(*[at(hits([0.0], 1.0, .4), b) for b in range(16, 32, 2)])
     seq.add_track("taiko", ak.instrument(ak.taiko, kind="low"), tk, volume=0.4, fx=rev(2.5, 0.4, 0.7))
 
-    seq.master_fx.append(lp(12000))
+    seq.master_fx.append(master_lp(12000))
     return save_loop(seq, "Title", audio_root, tmp_dir)
 
 
@@ -828,7 +878,7 @@ def build_victory(audio_root: str, tmp_dir: str) -> str:
                   hits([2.5, 2.75, 3.25, 3.5, 3.75], 0.25, .6) + hits([5.0, 5.5], 0.25, .5), volume=0.5, pan=0.15)
     seq.add_track("block", ak.instrument(ak.wood_block, pitch=1100), hits([0.5, 1.5, 2.5, 3.5, 4.5, 5.5], 0.25, .5),
                   volume=0.35, pan=0.35)
-    seq.master_fx.append(lp(13000))
+    seq.master_fx.append(master_lp(13000))
     return save_sting(seq, "Victory", audio_root, tmp_dir, fade_out=1.2)
 
 
@@ -848,7 +898,7 @@ def build_gameover(audio_root: str, tmp_dir: str) -> str:
     seq.add_track("pad", ak.instrument(ak.pad_synth, attack=1.5, release=2.0, cutoff=500.0), notes([(0.0, ["D2", "A2"], 7.0)], .6),
                   volume=1.0)
     seq.add_track("taiko", ak.instrument(ak.taiko, kind="low"), hits([4.0], 1.0, .7), volume=0.5, fx=rev(2.0, 0.3, 0.7))
-    seq.master_fx.append(lp(10000))
+    seq.master_fx.append(master_lp(10000))
     return save_sting(seq, "GameOver", audio_root, tmp_dir, fade_out=2.0)
 
 

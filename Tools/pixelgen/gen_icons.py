@@ -202,7 +202,7 @@ def ic_jian_cheongun() -> Canvas:
 
 def dagger(blade: Tuple[str, str, str], guard: Tuple[str, str], grip: str, wrap: str,
            pommel: str) -> Canvas:
-    return sword(12, 6, blade, guard, grip, wrap, pommel, guard_half=2, pommel_rows=2, x0=8, y0=29)
+    return sword(14, 7, blade, guard, grip, wrap, pommel, guard_half=2, pommel_rows=2, x0=6, y0=31)
 
 
 def ic_dagger() -> Canvas:
@@ -321,28 +321,33 @@ def ic_sling() -> Canvas:
 
 
 def ic_fist_wraps() -> Canvas:
-    """Clenched fist, knuckles up, cloth wraps across the hand and wrist (bare-hand weapon)."""
+    """Clenched fist seen from the thumb side, knuckles to the right: four notched finger
+    segments on the right edge, the thumb folded over the top, a cloth wrap across the back
+    of the hand and around the wrist (bare-hand weapon)."""
     return finish(pat("""
-...ooo.ooo.ooo.ooo....
-..oooooooooooooooooo..
-..osooosooosooosooos..
-..osssosssosssosssss..
-.ooooooooooooooooooos.
-.WWWWWWWWWWWWWWWWWWPs.
-.PPPPPPPPPPPPPPPPPPPs.
-.WWWWWWWWWWWWWWWWWWPs.
-.PPPPPPPPPPPPPPPPPPPs.
-.ooooooooooooooooooss.
-.oooFoooFoooFoooFooss.
-.ooFFsoFFsoFFsoFFsss..
-.oosssssssssssssssss..
-.ooooooooooooooooss...
-..sssssssssssssss.....
-...ooooooooooooss.....
-...WWWWWWWWWWWWPs.....
-...PPPPPPPPPPPPPs.....
-...WWWWWWWWWWWWPs.....
-...ooooooooooooss.....
+........oooooooo..........
+......oooooooooooo........
+.....ooooooooooooooo......
+....oooooooooooooooooooo..
+....ooooooooooooooooooooo.
+....oossskkkkkkkkooooooos.
+....oooooooooooooooooooos.
+....ooooooooooooooookkkks.
+....oooooooooooooooooooos.
+....WWWWWWWWWWWWWooooooooo
+....PPWWWWWWWWWWWookkkkss.
+....PPPPPPPPPPPPPooooooooo
+.....oooooooooooooooooooos
+.....oooooooooooooookkkks.
+.....ooooooooooooooooooos.
+......oooooooooooooooooss.
+.......ssooooooooooosss...
+........sssssooooss.......
+......WWWWWWWWWW..........
+.....WWWWWWWWWWPP.........
+.....PPPPPPPPPPPPP........
+......ooooooooooo.........
+......sssssssssss.........
 """))
 
 
@@ -851,7 +856,6 @@ def pill_on_paper(body: str, shade: str, hi: str) -> Canvas:
                     c.set(x, y, "paper_dark")
                 else:
                     c.set(x, y, "paper_light")
-    c.hline(cx - 6, cx + 6, cy + 13, "paper_dark")
     c.ellipse(cx + 1, cy + 2, 9, 8, "paper_dark")         # shadow under the pill
     ball(c, cx, cy, 8, body, shade, hi)
     return finish(c)
@@ -877,7 +881,8 @@ def ic_pill_vigor() -> Canvas:
     return pill_on_paper("vermilion_light", "vermilion", "gold_light")
 
 
-def elixir(body: str, shade: str, hi: str, extra_glow: bool = False) -> Canvas:
+def elixir(body: str, shade: str, hi: str, extra_glow: bool = False,
+           tint: Optional[str] = None) -> Canvas:
     c = blank()
     cx, cy = 20, 18
     # opened wax shell below
@@ -889,6 +894,12 @@ def elixir(body: str, shade: str, hi: str, extra_glow: bool = False) -> Canvas:
     c.ellipse(25, 27, 4, 2, "paper_light")
     c.rect(16, 24, 8, 4, "paper_dark")
     ball(c, cx, cy, 9, body, shade, hi, hi2="paper_light")
+    if tint:
+        # checker-dither a second hue over the lit half of the body (orange = red + gold)
+        for y in range(cy - 9, cy + 10):
+            for x in range(cx - 9, cx + 10):
+                if c.get_name(x, y) == body and (x + y) % 2 == 0 and (x - cx) + (y - cy) < 3:
+                    c.set(x, y, tint)
     c.set(cx - 5, cy - 4, "paper_light")
     out = finish(c)
     # glow sparkles (not outlined)
@@ -913,7 +924,7 @@ def ic_elixir_blue() -> Canvas:
 
 
 def ic_elixir_orange() -> Canvas:
-    return elixir("vermilion_light", "vermilion", "gold_light")
+    return elixir("vermilion_light", "vermilion", "gold_light", tint="gold")
 
 
 def ic_elixir_green() -> Canvas:
@@ -952,27 +963,37 @@ def ic_salve() -> Canvas:
 
 
 def ic_powder() -> Canvas:
-    """Folded paper packet with a vermilion stamp and a pinch of powder spilling out."""
+    """Upright paper packet (약포지): top flap folded down, side flaps folded to the back,
+    a vermilion stamp, powder showing at the open mouth and a heap spilled in front."""
     c = blank()
-    x, y, w, h = 7, 10, 26, 20
+    x, y, w, h = 10, 7, 19, 25
     c.rect(x, y, w, h, "paper")
     c.rect(x + w - 2, y + 1, 2, h - 1, "paper_dark")
     c.rect(x + 1, y + h - 2, w - 1, 2, "paper_dark")
-    c.rect(x, y, w - 1, 1, "paper_light")
     c.rect(x, y, 1, h - 1, "paper_light")
-    # fold lines: flaps folded towards the centre
-    c.line(x + 1, y + 1, x + 9, y + 9, "paper_dark")
-    c.line(x + w - 2, y + 1, x + w - 10, y + 9, "paper_dark")
-    c.hline(x + 9, x + w - 10, y + 9, "paper_dark")
-    c.line(x + 1, y + h - 2, x + 9, y + 9, "paper_light")
-    c.line(x + w - 2, y + h - 2, x + w - 10, y + 9, "paper_dark")
+    c.rect(x, y, w - 1, 1, "paper_light")
+    # side flaps folded behind: vertical crease lines
+    c.vline(x + 3, y + 7, y + h - 3, "paper_dark")
+    c.vline(x + w - 5, y + 7, y + h - 3, "paper_dark")
+    # top flap folded down over the front (darker band with a crease)
+    c.rect(x + 1, y + 1, w - 3, 6, "paper_dark")
+    c.rect(x + 1, y + 1, w - 3, 1, "paper")
+    c.hline(x + 1, x + w - 3, y + 7, "ink_light")
+    for k in range(0, w - 3, 2):                       # torn / dog-eared flap edge
+        c.set(x + 1 + k, y + 7, "paper_dark")
+    # powder peeking out of the mouth
+    c.hline(x + 5, x + w - 7, y + 6, "paper_light")
+    c.set(x + 7, y + 5, "paper_light"); c.set(x + 10, y + 5, "paper_light")
     # stamp
-    c.rect(x + 10, y + 11, 6, 6, "vermilion")
-    c.rect(x + 11, y + 12, 4, 4, "vermilion_dark")
-    c.set(x + 12, y + 13, "vermilion_light"); c.set(x + 13, y + 14, "vermilion_light")
-    # powder pinch at the bottom-left corner
-    c.ellipse(x + 2, y + h + 2, 4, 1, "paper_light")
-    c.set(x + 1, y + h + 1, "paper_light"); c.set(x + 4, y + h + 1, "paper_light")
+    c.rect(x + 6, y + 12, 7, 7, "vermilion")
+    c.rect(x + 7, y + 13, 5, 5, "vermilion_dark")
+    c.hline(x + 8, x + 10, y + 15, "vermilion_light")
+    c.set(x + 9, y + 14, "vermilion_light"); c.set(x + 9, y + 16, "vermilion_light")
+    # heap of powder spilled in front (bottom-left)
+    c.ellipse(x - 2, y + h + 1, 6, 2, "paper_light")
+    c.ellipse(x - 2, y + h + 2, 7, 2, "ink_pale")
+    c.ellipse(x - 2, y + h + 1, 5, 1, "paper_light")
+    c.set(x - 2, y + h - 1, "paper_light"); c.hline(x - 3, x - 1, y + h, "paper_light")
     return finish(c)
 
 
@@ -1041,15 +1062,15 @@ WWWWWWWW
 
 
 def glyph_kick() -> Canvas:
+    """A boot (kicking leg) seen from the side, toe to the right."""
     return pat("""
-..WWWW..
-.WW..WW.
-WW....W.
-WW......
-WW....W.
-.WW..WW.
-..WWWW..
-....WW..
+.WWW....
+.WWW....
+.WWW....
+.WWWW...
+.WWWWW..
+.WWWWWWW
+WWWWWWWW
 """)
 
 
@@ -1538,22 +1559,24 @@ def ic_gourd() -> Canvas:
 
 
 def ic_bandage() -> Canvas:
+    """Roll of white cloth seen end-on (spiral) with a length unrolling to the right."""
     return finish(pat("""
-.....WWWWWWWW.............
-...WWAAAAAAAAWa...........
-..WAAAAAAAAAAAWa..........
-.WAAAAaaaaaAAAAAa.........
-.WAAAaWWWWWaAAAAa.........
-.WAAAaWaaaWaAAAAa.........
-.WAAAaWWWWWaAAAAa.........
-.aAAAAaaaaaAAAAAa.........
-.aAAAAAAAAAAAAAAa.........
-..aAAAAAAAAAAAAaa.........
-...aaAAAAAAAAAaaWWWWWW....
-.....aaaaaaaaaaAAAAAAAWW..
-..............aAAAAAAAAAW.
-...............aaAAAAAAAa.
-.................aaaaaaaa.
+......WWWWWWWW................
+....WWAAAAAAAAWa..............
+...WAAAAaaaaaAAAa.............
+..WAAAaaAAAAAaaAAa............
+..WAAaAAAaaaaAaAAa............
+.WAAaAAaaAAAaaAAAAa...........
+.WAAaAAaAWWAaaAAAAa...........
+.WAAaAAaAWAAaAAAAAa...........
+.WAAaAAaaAAaaAAAAAa...........
+.WAAaAAAaaaaAAAAAAa...........
+.aAAAaaAAAAAaAAAAAa...........
+..aAAAaaaaaaAAAAAAaWWWWWWWWW..
+..aAAAAAAAAAAAAAAAaAAAAAAAAAW.
+...aAAAAAAAAAAAAAaaAaAaAaAaAa.
+.....aaAAAAAAAAAaaaAAAAAAAAAa.
+.......aaaaaaaaaa..aaaaaaaaaa.
 """))
 
 
