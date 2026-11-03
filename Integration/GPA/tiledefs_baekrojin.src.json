@@ -1,0 +1,41 @@
+{
+  "region": "Baekrojin",
+  "sheetBase": "Assets/_Project/Art/Resources/InkPixel/",
+  "specialGround": "=",
+  "playerSheet": "hero_1",
+  "tiles": [
+    {"key": ".", "sprite": "ground_grass_0"},
+    {"key": ",", "sprite": "ground_grass_1"},
+    {"key": "=", "sprite": "ground_road_0"},
+    {"key": "~", "sprite": "ground_water_0", "solid": true},
+    {"key": "#", "sprite": "ground_bridge_h"},
+    {"key": "T", "sprite": "nature_pine_a"},
+    {"key": "C", "sprite": "town_sect_hall_small"},
+    {"key": "A", "sprite": "town_inn_small"},
+    {"key": "H", "sprite": "town_heuksa_den"},
+    {"key": "h", "sprite": "town_house_large"},
+    {"key": "b", "sprite": "town_house_large_thatch"},
+    {"key": "G", "sprite": "town_sect_gate_small", "ground": "="},
+    {"key": "W", "sprite": "town_warehouse"}
+  ],
+  "npcs": [
+    {"key": "1", "name": "점소이", "sheet": "waiter"},
+    {"key": "2", "name": "흑사방 졸개", "sheet": "heuksa_thug"},
+    {"key": "3", "name": "흑사방 연락책", "sheet": "heuksa_courier"},
+    {"key": "4", "name": "소육", "sheet": "soyuk"},
+    {"key": "5", "name": "윤백산", "sheet": "yun_baeksan"},
+    {"key": "6", "name": "탁웅", "sheet": "tak_ung"},
+    {"key": "7", "name": "창고지기", "sheet": "warehouse_keeper"},
+    {"key": "8", "name": "고진악", "sheet": "go_jinak"},
+    {"key": "9", "name": "은둔 노인", "sheet": "hermit"},
+    {"key": "m", "name": "장터 상인", "sheet": "merchant"},
+    {"key": "p", "name": "석두", "sheet": "seokdu"},
+    {"key": "q", "name": "운학", "sheet": "unhak"},
+    {"key": "r", "name": "연아", "sheet": "yeona"},
+    {"key": "s", "name": "백설화", "sheet": "baekseolhwa"},
+    {"key": "t", "name": "홍련", "sheet": "hongryeon"},
+    {"key": "u", "name": "묵향", "sheet": "mukhyang"},
+    {"key": "v", "name": "유소소", "sheet": "yusoso"},
+    {"key": "x", "name": "능소", "sheet": "neungso"}
+  ]
+}

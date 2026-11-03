@@ -55,7 +55,8 @@ gpb/
       Runtime/      InkPixel.* demo + helpers (see §8)
       Editor/       importer, sidecar slicer, animation/tile builders, demo scene builder
     Generated/      created inside Unity by the editor tools (only .gitkeep committed)
-    Integration/GPA/  GpaTileDefImporter.cs, tiledefs_*.json, icon_map.md, README_GPA.md
+  Integration/GPA/  (outside Assets so gpb does not compile it) GpaInkPixelTools.cs, tiledefs_*.src.json
+                    + resolved tiledefs_*.json, layouts/, icon_map.md, README_GPA.md
   Tools/
     pixelgen/       Python generators for all art (pixelkit.py + gen_*.py + build_all.py)
     audiogen/       Python generators for all audio (audiokit.py + gen_*.py + build_all.py)
@@ -269,11 +270,11 @@ Generic NPCs & enemies (12): `villager_m`, `villager_f`, `old_woman`, `child_m`,
 ink_dark hat, paper robe, scroll), `beggar` (거지: patched clothes, gourd), `bandit` (갈대밭
 도적: bandana, rusty jian), `disciple_m`, `disciple_f` (청운검문 outer disciples, jade robe).
 
-Animals (12, same format; attack = bite/pounce/peck): `wolf`, `tiger`, `bear`, `deer`, `egret`
+Animals (13, same format; attack = bite/pounce/peck): `wolf`, `tiger`, `bear`, `deer`, `egret`
 (백로: white egret, standing/stepping, flight not needed), `dog`, `chicken`, `boar`, `monkey`,
-`snake`, `fox`, `horse`.
+`snake`, `fox`, `horse`, `raccoon` (너구리).
 
-Total: 12 + 9 + 13 + 12 + 12 = 58 sheets, 50 faces (outfit variants share faces).
+Total: 12 + 9 + 13 + 12 + 13 = 59 sheets, 51 faces (outfit variants share faces).
 
 ### 5.2 Tiles (`Art/Tiles/`)
 `ground` (kind `tiles`, all 1x1, no outline, seamless, `solid` false unless noted):
@@ -307,7 +308,10 @@ layered canopy), `nature_tree_round` (2x2 broadleaf), `nature_willow` (2x2, droo
 animation frames), `nature_cave_entrance` (2x2, dark opening in rock), `nature_hot_spring` (2x2,
 steam), `nature_stone_steps` (1x1 walkable, mountain path), `nature_cliff_face` (1x1 solid rock
 face piece), `nature_shrine_stone` (1x1, roadside stone marker), `nature_spirit_tree` (3x3, old
-tree with ribbons), `nature_grave` (1x1, mound with marker), `nature_tent` (2x2).
+tree with ribbons), `nature_grave` (1x1, mound with marker), `nature_tent` (2x2), and 1x1 variants used by GPA's
+mountain map (its props are single cells): `nature_hut` (움막 lean-to shelter), `nature_dead_tree_small`,
+`nature_stream` (계곡: rocky stream segment, solid), `nature_waterfall_small` (single-cell fall),
+`nature_herb_c` (산나물 third variant).
 
 `town` (kind `tiles`, props, 1px outline, pivot (0.5,0), `solid` true unless noted,
 `ground` = `ground_grass_0`): `town_house_tile_a`, `town_house_tile_b` (3x3, grey 기와 roof,
@@ -329,7 +333,11 @@ single TileDef — keep as decoration + note), `town_sign` (1x1), `town_barrel`,
 (3x2), `town_banner_sect` (1x2, jade), `town_banner_heuksa` (1x2, bronze_navy with a black snake
 mark), `town_torch` (1x1), `town_gate_door` (1x2 closed door), `town_steps` (1x1 walkable),
 `town_tombstone_a`, `town_tombstone_b` (1x1), `town_statue` (1x2), `town_bell_tower` (2x3),
-`town_bridge_stone_h` (1x1 walkable stone bridge piece), `town_pavilion` (3x3, open pavilion).
+`town_bridge_stone_h` (1x1 walkable stone bridge piece), `town_pavilion` (3x3, open pavilion),
+and GPA-footprint variants so existing layouts keep their letters: `town_sect_gate_small` (2x2
+paifang, `ground` = `ground_road_0`), `town_inn_small` (3x3 inn with banner), `town_sect_hall_small`
+(4x3 sect hall), `town_heuksa_den` (3x3, dark-roofed gang hideout with the black-snake banner),
+`town_house_large_thatch` (4x3 thatched large house).
 
 ### 5.3 Icons (`Art/Icons/`), kind `icons`
 40x40 single PNGs, transparent, 1px outline, Jianghu-Lite-like legibility, drawn large within
@@ -463,17 +471,19 @@ Shift, step SFX, talk key shows the face of the NPC in front), `GridWalker`, `St
 and FX strip, plays SFX by name, switches music; on-screen labels via `UnityEngine.UI.Text`
 with the built-in LegacyRuntime font), `SimpleAudio` (clip lists → `Play(name)` / `Music(name)`).
 
-### 7.3 GPA integration (`Integration/GPA/`)
-`GpaTileDefImporter.cs` — an editor script meant to be copied into GPA
-(`Assets/_Project/Editor/`). Menu `GPA/InkPixel/Apply TileDefs JSON to selected RegionData`:
+### 7.3 GPA integration (`Integration/GPA/`, repo root — NOT under Assets)
+`GpaInkPixelTools.cs` (already written) — an editor script meant to be copied into GPA
+(`Assets/_Project/Editor/`). Menus `GPA/InkPixel/1. InkPixel 에셋 복사...` (copies Art/Audio into
+GPA's Resources folders) and `GPA/InkPixel/2. TileDefs JSON 적용 (선택한 RegionData)`:
 reads a `tiledefs_<region>.json` (`{"tiles":[{"key":".","sheet":"Assets/_Project/Art/Resources/InkPixel/Tiles/ground.png","cellX":0,"cellY":0,"sizeX":1,"sizeY":1,"solid":false,"ground":".","overlay":false,"portal":"","encounterNode":""}],
 "npcs":[{"key":"p","sheet":"Assets/.../Characters/soyuk.png"}]}`) and fills the selected
 `GPA.World.RegionData` (`tiles`: List<TileDef>{key, sheet, cell, size, solid, ground, overlay,
 portal, encounterNode}; `npcs`: List<NpcDef>{key, name, sheet, knot, prop, propCell} — only
 `sheet` is replaced for existing keys) using `AssetDatabase.LoadAssetAtPath<Texture2D>`,
-`Undo.RecordObject`, `EditorUtility.SetDirty`. Ships with `tiledefs_baekrojin.json`,
-`tiledefs_overworld.json`, `tiledefs_cheongseok.json` that map GPA's current layout letters
-(`. , = ~ # T C A H h b G W M " R q P X`) to InkPixel cells, and `README_GPA.md` (Korean).
+`Undo.RecordObject`, `EditorUtility.SetDirty`. Ships with `tiledefs_<region>.src.json` (sprite
+names) that `Tools/gpa_sim/resolve_tiledefs.py` turns into `tiledefs_<region>.json` (cell coordinates)
+for GPA's three regions, GPA's layouts as text under `layouts/`, `Tools/gpa_sim/render_region.py`
+(a Python simulation of RegionView used for verification previews), `icon_map.md` and `README_GPA.md` (Korean).
 
 ---------------------------------------------------------------------------------------------
 

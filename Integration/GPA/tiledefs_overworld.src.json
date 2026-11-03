@@ -1,0 +1,22 @@
+{
+  "region": "Overworld",
+  "sheetBase": "Assets/_Project/Art/Resources/InkPixel/",
+  "specialGround": "=",
+  "playerSheet": "hero_1",
+  "tiles": [
+    {"key": ".", "sprite": "ground_grass_0"},
+    {"key": ",", "sprite": "ground_grass_1"},
+    {"key": "=", "sprite": "ground_road_0"},
+    {"key": "~", "sprite": "ground_water_0", "solid": true},
+    {"key": "#", "sprite": "ground_bridge_h"},
+    {"key": "T", "sprite": "nature_pine_a"},
+    {"key": "M", "sprite": "nature_mountain_a"},
+    {"key": "h", "sprite": "town_house_large"},
+    {"key": "b", "sprite": "town_house_large_thatch"},
+    {"key": "C", "sprite": "town_sect_hall_small"},
+    {"key": "\"", "sprite": "nature_reed_a", "overlay": true, "encounterNode": "갈대밭"},
+    {"key": "P", "sprite": "ground_road_0", "portal": "백로진"},
+    {"key": "X", "sprite": "ground_road_0", "portal": "관도 갈림길"}
+  ],
+  "npcs": []
+}

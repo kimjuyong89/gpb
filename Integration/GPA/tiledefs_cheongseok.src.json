@@ -1,0 +1,31 @@
+{
+  "region": "Cheongseok",
+  "sheetBase": "Assets/_Project/Art/Resources/InkPixel/",
+  "specialGround": ".",
+  "playerSheet": "hero_1",
+  "tiles": [
+    {"key": ".", "sprite": "ground_grass_dark_0"},
+    {"key": ",", "sprite": "ground_grass_dark_1"},
+    {"key": "=", "sprite": "ground_dirt_0"},
+    {"key": "~", "sprite": "ground_water_0", "solid": true},
+    {"key": "T", "sprite": "nature_pine_b"},
+    {"key": "R", "sprite": "nature_boulder"},
+    {"key": "h", "sprite": "town_house_large_thatch"},
+    {"key": "q", "sprite": "nature_rock_a", "overlay": true, "solid": true}
+  ],
+  "npcs": [
+    {"key": "a", "name": "움막", "prop": "nature_hut"},
+    {"key": "b", "name": "산나물", "prop": "nature_herb_a"},
+    {"key": "c", "name": "산나물", "prop": "nature_herb_b"},
+    {"key": "d", "name": "산나물", "prop": "nature_herb_c"},
+    {"key": "w", "name": "마른 나무", "prop": "nature_dead_tree_small"},
+    {"key": "x", "name": "마른 나무", "prop": "nature_dead_tree_small"},
+    {"key": "f", "name": "계곡", "prop": "nature_stream"},
+    {"key": "g", "name": "폭포", "prop": "nature_waterfall_small"},
+    {"key": "k", "name": "바위", "prop": "nature_rock_b"},
+    {"key": "l", "name": "절벽", "prop": "nature_cliff_face"},
+    {"key": "m", "name": "너구리", "sheet": "raccoon"},
+    {"key": "n", "name": "늑대", "sheet": "wolf"},
+    {"key": "o", "name": "큰 곰", "sheet": "bear"}
+  ]
+}
