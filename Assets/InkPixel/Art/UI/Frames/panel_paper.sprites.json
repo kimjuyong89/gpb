@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "sheet": "panel_paper",
+  "kind": "ui",
+  "pixelsPerUnit": 16,
+  "defaultPivotX": 0.5,
+  "defaultPivotY": 0.5,
+  "cellSize": 16,
+  "stripFrames": 0,
+  "stripFps": 0,
+  "sprites": [
+    {
+      "name": "panel_paper",
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 24,
+      "pivotX": 0.5,
+      "pivotY": 0.5,
+      "borderL": 8,
+      "borderB": 8,
+      "borderR": 8,
+      "borderT": 8,
+      "cellX": 0,
+      "cellY": 0,
+      "cellW": 2,
+      "cellH": 2,
+      "solid": false,
+      "overlay": false,
+      "ground": "",
+      "tags": "frame,panel,paper"
+    }
+  ],
+  "animations": [],
+  "tiles": [],
+  "tileRules": [],
+  "ruleTileDefaults": []
+}

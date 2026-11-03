@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "sheet": "bar_frame_vermilion",
+  "kind": "ui",
+  "pixelsPerUnit": 16,
+  "defaultPivotX": 0.5,
+  "defaultPivotY": 0.5,
+  "cellSize": 16,
+  "stripFrames": 0,
+  "stripFps": 0,
+  "sprites": [
+    {
+      "name": "bar_frame_vermilion",
+      "x": 0,
+      "y": 0,
+      "w": 48,
+      "h": 8,
+      "pivotX": 0.5,
+      "pivotY": 0.5,
+      "borderL": 3,
+      "borderB": 3,
+      "borderR": 3,
+      "borderT": 3,
+      "cellX": 0,
+      "cellY": 0,
+      "cellW": 3,
+      "cellH": 1,
+      "solid": false,
+      "overlay": false,
+      "ground": "",
+      "tags": "frame,bar,vermilion"
+    }
+  ],
+  "animations": [],
+  "tiles": [],
+  "tileRules": [],
+  "ruleTileDefaults": []
+}

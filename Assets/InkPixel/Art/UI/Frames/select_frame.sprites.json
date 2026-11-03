@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "sheet": "select_frame",
+  "kind": "ui",
+  "pixelsPerUnit": 16,
+  "defaultPivotX": 0.5,
+  "defaultPivotY": 0.5,
+  "cellSize": 16,
+  "stripFrames": 0,
+  "stripFps": 0,
+  "sprites": [
+    {
+      "name": "select_frame",
+      "x": 0,
+      "y": 0,
+      "w": 20,
+      "h": 20,
+      "pivotX": 0.5,
+      "pivotY": 0.5,
+      "borderL": 4,
+      "borderB": 4,
+      "borderR": 4,
+      "borderT": 4,
+      "cellX": 0,
+      "cellY": 0,
+      "cellW": 2,
+      "cellH": 2,
+      "solid": false,
+      "overlay": false,
+      "ground": "",
+      "tags": "frame,select"
+    }
+  ],
+  "animations": [],
+  "tiles": [],
+  "tileRules": [],
+  "ruleTileDefaults": []
+}
