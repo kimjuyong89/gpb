@@ -60,7 +60,7 @@ __all__ = [
     "Sequencer", "parse_pattern", "bar", "shift_pattern", "repeat_pattern", "merge_patterns",
     "transpose_pattern", "pattern_length", "instrument",
     # instruments
-    "nes_lead", "nes_bass_tri", "nes_noise_drum", "pluck", "pad", "bell", "zither", "flute",
+    "nes_lead", "nes_bass_tri", "nes_noise_drum", "pluck", "pad_synth", "synth_pad", "bell", "zither", "flute",
     "erhu", "taiko", "gong", "temple_bell", "wood_block", "shaker", "INSTRUMENTS",
     # i/o + spec helpers
     "write_wav", "read_wav", "write_ogg", "read_ogg", "ffprobe_info", "measure", "finalize_sfx",
@@ -754,7 +754,6 @@ def soft_clip(x: Signal, drive: float = 1.0, mode: str = "tanh") -> np.ndarray:
     if mode == "cubic":
         y = np.clip(y, -1.5, 1.5)
         y = y - (y ** 3) / 6.75
-        y /= 1.0
     else:
         y = np.tanh(y)
     return y * (peak / max(np.max(np.abs(y)), 1e-12))
@@ -995,7 +994,7 @@ def parse_pattern(text: str, step_beats: float = 0.25, velocity: float = 1.0,
         x  X           unpitched hit (for drum tracks; X = accent, x = `soft` velocity)
         C4@0.6         explicit velocity suffix (0..1), also works on x/X
         C4*            accent (velocity = `accent`)
-    parse_pattern('C4 == E4 -- G4@0.5', 0.25) -> [(0,'C4',0.5,1.0),(0.75,'E4',0.25,1.0),(1.25,'G4',0.25,0.5)]
+    parse_pattern('C4 == E4 -- G4@0.5', 0.25) -> [(0,'C4',0.5,1.0),(0.5,'E4',0.25,1.0),(1.0,'G4',0.25,0.5)]
     """
     out: Pattern = []
     tokens = [t for t in text.replace("|", " ").split() if t]
@@ -1089,14 +1088,21 @@ def transpose_pattern(pattern: Pattern, semitones: int) -> Pattern:
 _CORE_ARGS = ("freq", "dur", "vel")
 
 
-def instrument(fn: Callable, **fixed) -> Callable[[float, float, float], np.ndarray]:
+HIT_FREQ = 261.6255653005986      # C4: what a pitched instrument gets for an unpitched 'x' hit
+
+
+def instrument(fn: Callable, *, use_note_freq: Optional[bool] = None,
+               use_note_dur: Optional[bool] = None, **fixed) -> Callable[[Optional[float], float, float], np.ndarray]:
     """Adapt any sound function to the (freq, dur, vel) instrument signature.
 
-    Arguments named freq/pitch, dur and vel are filled from the note (unless given in
-    `fixed`); other keyword options are passed through, e.g.
+    The note's freq / dur are passed to the function's `freq` (or `pitch`) / `dur` parameters
+    when those parameters are REQUIRED (no default) -- i.e. for pitched instruments.  Hits
+    with optional pitch/length (`taiko`, `gong`, `wood_block`, `shaker`) keep their natural
+    pitch and length unless you force it with use_note_freq / use_note_dur=True.  `vel` is
+    always passed when the function has a `vel` parameter.  Fixed keyword options win:
         instrument(taiko, kind='low')     instrument(wood_block, pitch=880)
-        instrument(zither, bright=0.6)    instrument(gong)
-    Callables whose parameters have other names are called positionally (freq, dur, vel)."""
+        instrument(gong, dur=4.0)         instrument(zither, bright=0.6)
+    Callables with other parameter names are called positionally as fn(freq, dur, vel)."""
     try:
         params = inspect.signature(fn).parameters
     except (TypeError, ValueError):
@@ -1104,15 +1110,24 @@ def instrument(fn: Callable, **fixed) -> Callable[[float, float, float], np.ndar
     names = set(params)
     has_varkw = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
     freq_name = "freq" if "freq" in names else ("pitch" if "pitch" in names else None)
-    positional = not (names & {"freq", "pitch", "dur", "vel"}) and not has_varkw
 
-    def inst(freq: float, dur: float, vel: float = 1.0) -> np.ndarray:
+    def required(name: str) -> bool:
+        return name in params and params[name].default is inspect.Parameter.empty
+
+    positional = not (names & {"freq", "pitch", "dur", "vel"}) and not has_varkw
+    pass_freq = (required(freq_name) if freq_name else False) if use_note_freq is None else bool(use_note_freq and freq_name)
+    pass_dur = required("dur") if use_note_dur is None else bool(use_note_dur and ("dur" in names or has_varkw))
+
+    def inst(freq: Optional[float], dur: float, vel: float = 1.0) -> np.ndarray:
         if positional:
-            return _as_signal(fn(freq, dur, vel, **fixed))
+            return _as_signal(fn(HIT_FREQ if freq is None else freq, dur, vel, **fixed))
         kw = dict(fixed)
-        if freq_name and freq_name not in kw and freq is not None:
-            kw[freq_name] = freq
-        if ("dur" in names or has_varkw) and "dur" not in kw:
+        if freq_name and freq_name not in kw:
+            if freq is not None and pass_freq:
+                kw[freq_name] = freq
+            elif freq is None and required(freq_name):
+                kw[freq_name] = HIT_FREQ
+        if pass_dur and "dur" not in kw:
             kw["dur"] = dur
         if ("vel" in names or has_varkw) and "vel" not in kw:
             kw["vel"] = vel
@@ -1153,11 +1168,10 @@ class Sequencer:
         audio = seq.render_loop_safe(bars=4)      # exactly loop_samples(92, 4) samples
 
     Events: (start_beat, note, length_beats, velocity); note None = rest, 'x' = unpitched hit
-    (freq C4).  Instruments may return tails longer than the note; `render` truncates at the
+    (pitched instruments get C4, hits keep their own sound).  Instruments may return tails
+    longer than the note; `render` truncates at the
     loop end, `render_loop_safe` wraps the tails around to the start so loops are seamless.
     """
-
-    HIT_FREQ = 261.6255653005986   # C4, passed to unpitched instruments for 'x' hits
 
     def __init__(self, bpm: float, sr: int = SR):
         self.bpm = float(bpm)
@@ -1192,7 +1206,7 @@ class Sequencer:
         key = (id(inst), None if freq is None else round(freq, 5), n_len, round(vel, 4))
         y = self._cache.get(key)
         if y is None:
-            y = _as_signal(inst(self.HIT_FREQ if freq is None else freq, n_len / self.sr, vel))
+            y = _as_signal(inst(freq, n_len / self.sr, vel))
             if y.ndim == 2:
                 y = to_mono(y)
             y = np.nan_to_num(y)
@@ -1287,6 +1301,12 @@ def _click(dur: float, cutoff: float, seed_v: int, sr: int = SR) -> np.ndarray:
     return lowpass(noise(dur, "white", sr, seed_v), cutoff, sr) * env_decay(n, dur / 3.0, sr)
 
 
+def _level(y: np.ndarray, peak: float) -> np.ndarray:
+    """Scale a rendered note so its absolute peak is `peak` (consistent instrument levels)."""
+    m = float(np.max(np.abs(y))) if len(y) else 0.0
+    return y * (peak / m) if m > 0 else y
+
+
 # -- chip instruments ------------------------------------------------------------------------
 def nes_lead(duty: float = 0.5, attack: float = 0.004, decay: float = 0.08, sustain: float = 0.7,
              release: float = 0.05, vib_depth: float = 0.12, vib_rate: float = 6.0,
@@ -1319,12 +1339,12 @@ def nes_noise_drum(kind: str = "kick") -> Callable:
             n = samples(0.22, sr)
             body = osc_tri(freq_curve(160.0, 45.0, 0.22, "exp", sr), None, sr) * env_decay(n, 0.07, sr)
             click = nes_noise(0.02, period=2, sr=sr) * env_decay(samples(0.02, sr), 0.004, sr)
-            return mix(body * 0.9, click * 0.4) * g
+            return _level(mix(body * 0.9, click * 0.4), 0.9 * g)
         if kind == "snare":
             n = samples(0.2, sr)
             tone = osc_tri(freq_curve(220.0, 150.0, 0.2, "exp", sr), None, sr) * env_decay(n, 0.03, sr)
             nz = nes_noise(0.2, period=6, sr=sr) * env_decay(n, 0.05, sr)
-            return mix(tone * 0.5, nz * 0.7) * g
+            return _level(mix(tone * 0.5, nz * 0.7), 0.85 * g)
         if kind in ("hat", "closedhat", "hihat"):
             n = samples(0.06, sr)
             return nes_noise(0.06, period=0, mode="long", sr=sr) * env_decay(n, 0.012, sr) * 0.5 * g
@@ -1351,10 +1371,10 @@ def pluck(freq: float, dur: float, vel: float = 1.0, sr: int = SR, bright: float
     cutoff = freq * (2.0 + 10.0 * bright * g) * env_decay(n, 0.12, sr) + freq * 1.5
     y = lowpass_var(y, np.clip(cutoff, 200.0, sr * 0.45), sr) if n < sr * 3 else lowpass(y, freq * 4, sr)
     env = env_decay(n, 0.18 + 0.25 * dur, sr) * env_note(dur, 0.002, 0.0, 1.0, release, sr)
-    return y * env * 0.7 * g
+    return _level(y * env, 0.8 * g)
 
 
-def pad(freq: float, dur: float, vel: float = 1.0, sr: int = SR, attack: float = 0.35,
+def pad_synth(freq: float, dur: float, vel: float = 1.0, sr: int = SR, attack: float = 0.35,
         release: float = 0.6, detune: float = 0.4, cutoff: float = 2200.0) -> np.ndarray:
     """Soft pad: three detuned saws + a sub triangle, slow attack, low-passed (wind-like)."""
     env = env_note(dur, attack, 0.2, 0.85, release, sr)
@@ -1366,6 +1386,9 @@ def pad(freq: float, dur: float, vel: float = 1.0, sr: int = SR, attack: float =
     return y * env * 0.45 * _vel_gain(vel)
 
 
+synth_pad = pad_synth
+
+
 def bell(freq: float, dur: float, vel: float = 1.0, sr: int = SR, release: float = 1.2) -> np.ndarray:
     """FM-style bell from inharmonic partials (1, 2.76, 5.4, 8.9), fast attack."""
     total = dur + release
@@ -1374,7 +1397,7 @@ def bell(freq: float, dur: float, vel: float = 1.0, sr: int = SR, release: float
     y = additive(freq, total, partials, sr)
     n = len(y)
     y *= env_adsr(n, 0.002, 0.0, 1.0, 0.1, sr)
-    return y * 0.55 * _vel_gain(vel)
+    return _level(y, 0.75 * _vel_gain(vel))
 
 
 # -- wuxia instruments -----------------------------------------------------------------------
@@ -1398,7 +1421,7 @@ def zither(freq: float, dur: float, vel: float = 1.0, sr: int = SR, bright: floa
     pick = _click(0.012, 6000.0, _nseed("zither", freq, dur, vel), sr) * 0.5 * g
     y = mix(h1 + h2 + h3 + h4, pick)
     y *= env_adsr(n, 0.0015, 0.0, 1.0, min(0.08, ring * 0.3), sr)
-    return y * 0.6 * g
+    return _level(y, 0.8 * g)
 
 
 def flute(freq: float, dur: float, vel: float = 1.0, sr: int = SR, attack: float = 0.02,
@@ -1443,6 +1466,8 @@ def taiko(kind: str = "low", vel: float = 1.0, dur: Optional[float] = None,
     """Taiko / 북 hit: sine thump with a pitch drop plus a skin click.
     kind 'low' (大太鼓), 'mid', 'rim' (wood rim click).  `freq` overrides the body pitch."""
     kind = kind.lower()
+    if kind not in ("low", "mid", "rim"):
+        raise ValueError("taiko kind must be 'low', 'mid' or 'rim' (got %r)" % kind)
     g = _vel_gain(vel)
     sd = _nseed("taiko", kind, vel)
     if kind == "rim":
@@ -1451,7 +1476,7 @@ def taiko(kind: str = "low", vel: float = 1.0, dur: Optional[float] = None,
         tone = osc_sine(freq_curve(1900.0 if freq is None else freq * 2, 1200.0, d, "exp", sr), None, sr) * env_decay(n, 0.012, sr)
         clk = highpass(noise(d, "white", sr, sd), 2500.0, sr) * env_decay(n, 0.008, sr)
         y = tone * 0.6 + clk * 0.9
-        return fade(y * 0.8 * g, 0.0005, 0.01, sr)
+        return _level(fade(y, 0.0005, 0.01, sr), 0.85 * g)
     if kind == "mid":
         f0, f1, d, tau = (200.0, 95.0, dur or 0.45, 0.12)
     else:
@@ -1465,7 +1490,7 @@ def taiko(kind: str = "low", vel: float = 1.0, dur: Optional[float] = None,
     skin = lowpass(noise(d, "pink", sr, sd + 1), 500.0, sr) * env_decay(n, 0.05, sr) * 0.35
     y = mix(body, click, skin)
     y *= env_adsr(n, 0.001, 0.0, 1.0, min(0.05, d * 0.2), sr)
-    return y * 0.85 * g
+    return _level(y, 0.9 * g)
 
 
 def gong(dur: float = 3.0, vel: float = 1.0, freq: float = 92.0, sr: int = SR,
@@ -1492,7 +1517,7 @@ def gong(dur: float = 3.0, vel: float = 1.0, freq: float = 92.0, sr: int = SR,
     y = mix(y, strike)
     y = soft_clip(y * (1.0 + 0.8 * g), 1.3)
     y *= env_adsr(n, 0.003, 0.0, 1.0, min(0.3, dur * 0.25), sr, curve="exp")
-    return y * 0.7 * g
+    return _level(y, 0.9 * g)
 
 
 def temple_bell(freq: float = 196.0, dur: float = 3.0, vel: float = 1.0, sr: int = SR,
@@ -1515,7 +1540,7 @@ def temple_bell(freq: float = 196.0, dur: float = 3.0, vel: float = 1.0, sr: int
     y = mix(y, strike)
     y *= env_adsr(n, 0.002, 0.0, 1.0, min(0.25, dur * 0.2), sr, curve="exp")
     y = soft_clip(y * (1.0 + 0.5 * g), 1.2)
-    return y * 0.6 * g
+    return _level(y, 0.85 * g)
 
 
 def wood_block(pitch: float = 900.0, vel: float = 1.0, dur: float = 0.11, sr: int = SR) -> np.ndarray:
@@ -1529,7 +1554,7 @@ def wood_block(pitch: float = 900.0, vel: float = 1.0, dur: float = 0.11, sr: in
     clk = biquad_bandpass(noise(dur, "white", sr, sd), min(pitch * 1.6, 8000.0), 1.5, sr) * np.exp(-t / 0.006)
     y = mix(tone * 0.8, tone2, clk * 1.6)
     y *= env_adsr(n, 0.0005, 0.0, 1.0, min(0.03, dur * 0.3), sr)
-    return y * 0.8 * g
+    return _level(y, 0.85 * g)
 
 
 def shaker(dur: float = 0.14, vel: float = 1.0, sr: int = SR, tone: float = 6000.0) -> np.ndarray:
@@ -1538,13 +1563,13 @@ def shaker(dur: float = 0.14, vel: float = 1.0, sr: int = SR, tone: float = 6000
     n = samples(dur, sr)
     y = highpass(noise(dur, "white", sr, _nseed("shaker", dur, vel)), tone, sr, order=2)
     y *= env_adsr(n, 0.008, 0.0, 1.0, dur * 0.7, sr, curve="exp")
-    return y * 0.5 * g
+    return _level(y, 0.6 * g)
 
 
 INSTRUMENTS: Dict[str, Callable] = {
     "nes_lead": nes_lead(0.5), "nes_lead_25": nes_lead(0.25), "nes_lead_12": nes_lead(0.125),
     "nes_bass_tri": nes_bass_tri, "kick": nes_noise_drum("kick"), "snare": nes_noise_drum("snare"),
-    "hat": nes_noise_drum("hat"), "pluck": pluck, "pad": pad, "bell": bell, "zither": zither,
+    "hat": nes_noise_drum("hat"), "pluck": pluck, "pad_synth": pad_synth, "bell": bell, "zither": zither,
     "flute": flute, "erhu": erhu,
 }
 
@@ -1737,8 +1762,8 @@ def finalize_sfx(x: Signal, sr: int = SR, peak_db: float = SFX_PEAK_DB, fade_s: 
     n_max = samples(max_seconds, sr)
     if len(x) > n_max:
         x = fade(x[:n_max], 0.0, 0.03, sr)
+    x = remove_dc(x)                      # before the fades so the first/last samples stay 0
     x = fade(x, fade_s, fade_s, sr)
-    x = remove_dc(x)
     x = normalize(x, peak_db)
     return x
 
