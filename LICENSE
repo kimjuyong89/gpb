@@ -1,0 +1,38 @@
+InkPixel (수묵 픽셀 팩) — Licensing
+===================================
+
+1. Code (everything under Assets/InkPixel/Scripts, Assets/InkPixel/Integration and Tools/)
+
+MIT License
+
+Copyright (c) 2026 InkPixel contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+2. Art and audio (everything under Assets/InkPixel/Art and Assets/InkPixel/Audio,
+   and the previews under Docs/)
+
+CC0 1.0 Universal (Public Domain Dedication)
+https://creativecommons.org/publicdomain/zero/1.0/
+
+To the extent possible under law, the InkPixel contributors have waived all
+copyright and related or neighboring rights to these art and audio files.
+You can copy, modify, distribute and use them, even for commercial purposes,
+all without asking permission and without attribution.
+(아트·오디오는 CC0입니다. 상업 이용·수정·재배포 자유, 출처 표기 불필요.)
