@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "sheet": "scholar_face",
+  "kind": "face",
+  "pixelsPerUnit": 16,
+  "defaultPivotX": 0.5,
+  "defaultPivotY": 0.0,
+  "cellSize": 16,
+  "stripFrames": 0,
+  "stripFps": 0,
+  "sprites": [
+    {
+      "name": "scholar_face",
+      "x": 0,
+      "y": 0,
+      "w": 32,
+      "h": 32,
+      "pivotX": 0.5,
+      "pivotY": 0.0,
+      "borderL": 0,
+      "borderB": 0,
+      "borderR": 0,
+      "borderT": 0,
+      "cellX": 0,
+      "cellY": 0,
+      "cellW": 2,
+      "cellH": 2,
+      "solid": false,
+      "overlay": false,
+      "ground": "",
+      "tags": "face"
+    }
+  ],
+  "animations": [],
+  "tiles": [],
+  "tileRules": [],
+  "ruleTileDefaults": []
+}

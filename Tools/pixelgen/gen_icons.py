@@ -81,10 +81,16 @@ def blank() -> Canvas:
 # small drawing helpers
 # ------------------------------------------------------------------------------------------
 def ball(c: Canvas, cx: int, cy: int, r: int, body: str, shade: str, hi: str,
-         hi2: Optional[str] = None) -> None:
-    """Sphere: shade crescent bottom-right, highlight blob top-left."""
+         hi2: Optional[str] = None, mid: Optional[str] = None) -> None:
+    """Sphere: shade crescent bottom-right, highlight blob top-left. With `mid` the crescent is
+    two-toned (shade outside, mid inside) and twice as wide -- needed for pale spheres that
+    would otherwise melt into a pale background."""
     c.circle(cx, cy, r, shade)
-    c.circle(cx - 1, cy - 1, r - 1, body)
+    if mid:
+        c.circle(cx - 1, cy - 1, r - 1, mid)
+        c.circle(cx - 2, cy - 2, r - 2, body)
+    else:
+        c.circle(cx - 1, cy - 1, r - 1, body)
     hx, hy = cx - max(1, r // 2), cy - max(1, r // 2)
     c.rect(hx - 1, hy, 3, 2, hi)
     c.set(hx, hy - 1, hi)
@@ -505,12 +511,20 @@ def sandal() -> Canvas:
 """)
 
 
-def ic_straw_sandals() -> Canvas:
-    a = sandal().outlined()
+def pair(part: Canvas, pos_a: Tuple[int, int], pos_b: Tuple[int, int],
+         flip_b: bool = False) -> Canvas:
+    """Two-object icons (shoes, gloves): each part gets its own full outline (grow=True so the
+    ring is never clipped at the part's canvas edge), then the pair is centred in the cell."""
+    a = part.outlined(grow=True)
+    b = a.flipped_x() if flip_b else a
     c = blank()
-    c.blit(a, 4, 12)
-    c.blit(a, 17, 6)
-    return c
+    c.blit(a, *pos_a)
+    c.blit(b, *pos_b)
+    return finish(c, outline=False)
+
+
+def ic_straw_sandals() -> Canvas:
+    return pair(sandal(), (4, 12), (17, 6))
 
 
 def boot() -> Canvas:
@@ -538,11 +552,7 @@ EEEEEEEEEEEEE.
 
 
 def ic_leather_boots() -> Canvas:
-    b = boot().outlined()
-    c = blank()
-    c.blit(b, 19, 5)
-    c.blit(b, 3, 13)
-    return c
+    return pair(boot(), (19, 5), (3, 13))
 
 
 def cloud_shoe() -> Canvas:
@@ -561,11 +571,7 @@ def cloud_shoe() -> Canvas:
 
 
 def ic_cloud_shoes() -> Canvas:
-    s = cloud_shoe().outlined()
-    c = blank()
-    c.blit(s, 15, 5)
-    c.blit(s, 1, 18)
-    return c
+    return pair(cloud_shoe(), (14, 5), (1, 18))
 
 
 GLOVE = """
@@ -597,11 +603,8 @@ def ic_glove() -> Canvas:
 
 def ic_leather_gloves() -> Canvas:
     g = pat(GLOVE, {"1": "earth", "2": "earth_dark", "3": "ink_dark",
-                    "4": "earth", "5": "ink_light"}).outlined()
-    c = blank()
-    c.blit(g, 14, 2)
-    c.blit(g.flipped_x(), 3, 10)
-    return c
+                    "4": "earth", "5": "ink_light"})
+    return pair(g, (14, 2), (3, 10), flip_b=True)
 
 
 CLOTH_WRAPS = """
@@ -817,33 +820,33 @@ def ic_talisman() -> Canvas:
     c.rect(x + w - 2, y + 1, 2, h - 1, "paper_dark")
     c.rect(x + 1, y + h - 1, w - 1, 1, "paper_dark")
     c.rect(x, y, 1, h - 1, "paper_light")
-    # folded corner
-    for k in range(4):
-        c.hline(x + w - 1 - k, x + w - 1, y + k, None)
-    for k in range(4):
-        c.set(x + w - 5 + k, y + 4 - k, "paper_dark")
-        c.hline(x + w - 5 + k + 1, x + w - 1, y + 4 - k + 0, None) if False else None
-    c.hline(x + w - 5, x + w - 1, y + 4, "paper_dark")
-    # vermilion marks: three dots, zigzag column, bottom seal
+    # dog-eared top-right corner: a 5x5 block, the part above the fold diagonal is cut away,
+    # the part below it is the back of the paper folded over (paper_dark)
+    x0 = x + w - 5
+    for py in range(5):
+        for px in range(5):
+            c.set(x0 + px, y + py, None if px - py >= 1 else "paper_dark")
+    c.set(x0, y + 4, "paper")                     # soft crease at the fold's inner corner
+    # vermilion marks below the fold: three dots, a zigzag column of strokes, bottom seal
     for dx in (3, 6, 9):
-        c.set(x + dx, y + 3, "vermilion")
-    c.rect(x + 2, y + 6, 8, 2, "vermilion")
-    c.rect(x + 4, y + 8, 2, 3, "vermilion")
-    c.rect(x + 3, y + 11, 6, 2, "vermilion")
-    c.rect(x + 6, y + 13, 2, 3, "vermilion")
-    c.rect(x + 3, y + 16, 6, 2, "vermilion")
-    c.rect(x + 4, y + 18, 2, 2, "vermilion")
-    c.rect(x + 3, y + 20, 6, 2, "vermilion")
-    c.rect(x + 3, y + 24, 6, 4, "vermilion")
-    c.rect(x + 4, y + 25, 4, 2, "vermilion_dark")
-    c.set(x + 5, y + 25, "gold_light"); c.set(x + 6, y + 26, "gold_light")
+        c.set(x + dx, y + 6, "vermilion")
+    c.rect(x + 2, y + 8, 8, 2, "vermilion")
+    c.rect(x + 4, y + 10, 2, 3, "vermilion")
+    c.rect(x + 3, y + 13, 6, 2, "vermilion")
+    c.rect(x + 6, y + 15, 2, 3, "vermilion")
+    c.rect(x + 3, y + 18, 6, 2, "vermilion")
+    c.rect(x + 4, y + 20, 2, 2, "vermilion")
+    c.rect(x + 3, y + 22, 6, 2, "vermilion")
+    c.rect(x + 3, y + 25, 6, 4, "vermilion")
+    c.rect(x + 4, y + 26, 4, 2, "vermilion_dark")
+    c.set(x + 5, y + 26, "gold_light"); c.set(x + 6, y + 27, "gold_light")
     return finish(c)
 
 
 # ------------------------------------------------------------------------------------------
 # consumables & elixirs
 # ------------------------------------------------------------------------------------------
-def pill_on_paper(body: str, shade: str, hi: str) -> Canvas:
+def pill_on_paper(body: str, shade: str, hi: str, mid: Optional[str] = None) -> Canvas:
     c = blank()
     cx, cy = 20, 20
     for y in range(ICON):
@@ -857,7 +860,7 @@ def pill_on_paper(body: str, shade: str, hi: str) -> Canvas:
                 else:
                     c.set(x, y, "paper_light")
     c.ellipse(cx + 1, cy + 2, 9, 8, "paper_dark")         # shadow under the pill
-    ball(c, cx, cy, 8, body, shade, hi)
+    ball(c, cx, cy, 8, body, shade, hi, mid=mid)
     return finish(c)
 
 
@@ -866,7 +869,8 @@ def ic_pill() -> Canvas:
 
 
 def ic_pill_qi() -> Canvas:
-    return pill_on_paper("paper", "ink_pale", "paper_light")
+    # white pill: a grey two-tone crescent so it still reads as a sphere on the paper wrapper
+    return pill_on_paper("paper_light", "ink_light", "paper_light", mid="ink_pale")
 
 
 def ic_pill_antidote() -> Canvas:
@@ -882,7 +886,7 @@ def ic_pill_vigor() -> Canvas:
 
 
 def elixir(body: str, shade: str, hi: str, extra_glow: bool = False,
-           tint: Optional[str] = None) -> Canvas:
+           tint: Optional[str] = None, mid: Optional[str] = None) -> Canvas:
     c = blank()
     cx, cy = 20, 18
     # opened wax shell below
@@ -893,7 +897,7 @@ def elixir(body: str, shade: str, hi: str, extra_glow: bool = False,
     c.ellipse(11, 27, 4, 2, "paper_light")
     c.ellipse(25, 27, 4, 2, "paper_light")
     c.rect(16, 24, 8, 4, "paper_dark")
-    ball(c, cx, cy, 9, body, shade, hi, hi2="paper_light")
+    ball(c, cx, cy, 9, body, shade, hi, hi2="paper_light", mid=mid)
     if tint:
         # checker-dither a second hue over the lit half of the body (orange = red + gold)
         for y in range(cy - 9, cy + 10):
@@ -932,7 +936,8 @@ def ic_elixir_green() -> Canvas:
 
 
 def ic_elixir_white() -> Canvas:
-    return elixir("paper", "ink_pale", "paper_light")
+    # white elixir: grey two-tone crescent separates the ball from the white wax shells
+    return elixir("paper_light", "ink_light", "gold_light", mid="ink_pale")
 
 
 def ic_elixir_gold() -> Canvas:
@@ -1017,11 +1022,9 @@ def book(cover: str, cover_shade: str, glyph: Optional[Canvas] = None, label: bo
         c.rect(x + 5, y + 2, 7, 15, "paper_light")
         c.rect(x + 11, y + 3, 1, 14, "paper_dark")
         c.rect(x + 6, y + 16, 6, 1, "paper_dark")
-        c.vline(x + 7, y + 4, y + 7, "ink_dark")
-        c.vline(x + 8, y + 5, y + 6, "ink_dark")
-        c.vline(x + 7, y + 9, y + 12, "ink_dark")
-        c.set(x + 9, y + 10, "ink_dark")
-        c.set(x + 8, y + 14, "ink_dark"); c.set(x + 7, y + 14, "ink_dark")
+        # three stacked pseudo-characters (brush strokes) down the title label
+        c.paste_pattern(["KKK", ".K.", "KKK", "...", "K.K", "KKK", "K.K", "...", "KKK", "K.K", "KKK"],
+                        x + 7, y + 4, {"K": "ink_dark"})
     if glyph is not None:
         c.blit(glyph, x + 12, y + 17)
     return finish(c)
@@ -1079,7 +1082,7 @@ def ic_manual() -> Canvas:
 
 
 def ic_manual_dao() -> Canvas:
-    return book("ink_dark", "ink_black" if False else "bronze_navy", glyph_dao())
+    return book("ink_dark", "bronze_navy", glyph_dao())
 
 
 def ic_manual_palm() -> Canvas:
@@ -1689,23 +1692,30 @@ def ic_poison() -> Canvas:
 
 
 def ic_silk() -> Canvas:
-    """A bolt of plum silk with a length unrolled to the right."""
-    return finish(pat("""
-.......qqqqqqqqqqqq.............
-.....qqWWWqqqqqqqqqqN...........
-....qWWqqqqqqqqqqqqqqN..........
-...qWWqqqqqqqqqqqqqqqqN.........
-...qWqqqqqqqqqqqqqqqqqNN........
-...qqqqqqqqqqqqqqqqqqqqN........
-...NqqqqqqqqqqqqqqqqqqqNqqqqq...
-...NNqqqqqqqqqqqqqqqqqNqqWWqqqq.
-....NNqqqqqqqqqqqqqqNNqqWqqqqqq.
-.....NNNqqqqqqqqqqNNNqqqqqqqqqN.
-.......NNNNNNNNNNNNqqqqqqqqqqNN.
-..........qqqqqqqqqqqqqqqqqqNN..
-..........NqqqqqqqqqqqqqqNNN....
-..........NNNNNNNNNNNNNNNN......
-"""))
+    """A folded bolt of plum silk as sold in a shop: three stacked folds with navy shade lines,
+    a paper label band around the middle with a vermilion merchant seal, satin sheen streaks,
+    and the top fold's corner lifting at the left."""
+    c = blank()
+    x, y, w = 4, 13, 31
+    for layer in range(3):
+        ly = y + layer * 4
+        c.hline(x + 1, x + w - 2, ly, "plum")
+        c.rect(x, ly + 1, w - 1, 2, "plum")
+        c.vline(x + w - 1, ly + 1, ly + 2, "bronze_navy")
+        c.hline(x + 1, x + w - 2, ly + 3, "bronze_navy")
+        c.hline(x + 3, x + 6, ly + 1, "paper_light")        # satin sheen on each fold
+    # lifted corner of the top fold (a soft wave rising at the left)
+    c.paste_pattern(["...qqq....", ".qqqWWqqq.", "qWWqqqqqqq", "qWqqqqqqqq"],
+                    x - 1, y - 4, {"q": "plum", "W": "paper_light"})
+    c.hline(x + 1, x + 6, y, "plum")
+    # paper label band wrapped around the bolt, with a vermilion seal
+    bx = x + 11
+    c.rect(bx, y - 1, 8, 13, "paper")
+    c.rect(bx + 7, y - 1, 1, 13, "paper_dark")
+    c.rect(bx, y - 1, 1, 13, "paper_light")
+    c.rect(bx + 2, y + 3, 4, 4, "vermilion")
+    c.rect(bx + 3, y + 4, 2, 2, "vermilion_dark")
+    return finish(c)
 
 
 def ic_basket() -> Canvas:

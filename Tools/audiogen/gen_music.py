@@ -271,6 +271,21 @@ def lp(hz: float, order: int = 1) -> Callable:
     return lambda x: ak.lowpass(x, hz, order=order)
 
 
+def hp(hz: float = 30.0, order: int = 2) -> Callable:
+    """Track-level DC blocker / rumble filter.  ak.pluck is built on osc_pulse, whose
+    asymmetric duty cycle carries a DC offset (mean -0.5 at duty 0.25) that the pluck's
+    lowpass passes straight through: without this every bass note lands a DC step in the
+    mix (measured -0.06 DC and ~20 %% of the energy below 30 Hz on World/Battle/Dark)."""
+    return lambda x: ak.highpass(x, hz, order=order)
+
+
+def sat(drive: float) -> Callable:
+    """Gentle peak-preserving tanh saturation.  Zither pick transients sit ~18 dB above
+    the note body; rounding them lowers the crest factor so the master normalises louder
+    (Town went from -21 to about -17 dBFS RMS) without changing the balance much."""
+    return lambda x: ak.soft_clip(x, drive)
+
+
 MASTER_PREROLL = 4096   # samples; far longer than the impulse response of any master lowpass
 
 
@@ -338,7 +353,8 @@ def build_town(audio_root: str, tmp_dir: str) -> str:
           "B4 D5 E5 == G5 == E5 D5 | E5 == D5 == B4 == A4 B4 |"
           "A4 == == == B4 == D5 == | E5 == D5 == -- -- -- --", 0.5)
     lead = cat(vel(A, 0.9), vel(A2, 0.8), vel(B, 1.0), vel(A2, 0.95))
-    seq.add_track("zither", ak.zither, lead, volume=0.9, pan=0.0, fx=rev(1.1, 0.14, 0.6))
+    seq.add_track("zither", ak.instrument(ak.zither, bright=0.85), lead, volume=0.72, pan=0.0,
+                  fx=chain(sat(1.5), rev(1.1, 0.14, 0.6)))
 
     # -- flute counter-melody (B) + two sustained answers in the last A ------------------
     fl = P("-- -- -- -- B4 == == == | G4 == == == == == -- -- |"
@@ -348,7 +364,7 @@ def build_town(audio_root: str, tmp_dir: str) -> str:
     fl_tail = merge(at(P("-- -- -- -- B4 == == == | D5 == == == == == -- --", 0.5), 2),
                     at(P("-- -- -- -- E5 == D5 == | D5 == == == == == -- --", 0.5), 6))
     seq.add_track("flute", ak.flute, merge(at(vel(fl, 0.8), 16), at(vel(fl_tail, 0.6), 24)),
-                  volume=0.42, pan=0.28, fx=rev(1.4, 0.22, 0.5))
+                  volume=0.5, pan=0.28, fx=rev(1.4, 0.22, 0.5))
 
     # -- zither bass: roots and fifths --------------------------------------------------
     rootsA = ["G2", "E2", "C3", "D3", "G2", "E2", "D3", "G2"]
@@ -368,12 +384,12 @@ def build_town(audio_root: str, tmp_dir: str) -> str:
     wb = rep(hits([1.0, 3.0], 0.25, 0.55), 32)
     wb_fill = rep(hits([3.75], 0.25, 0.4), 8, 4)         # 16th pickup every 4th bar
     seq.add_track("block", ak.instrument(ak.wood_block, pitch=1050), merge(wb, at(wb_fill, 3)),
-                  volume=0.45, pan=0.35, fx=rev(0.7, 0.18, 0.4))
+                  volume=0.55, pan=0.35, fx=rev(0.7, 0.18, 0.4))
     sh = rep(P("x X x X x X x X", 0.5, velocity=0.6, soft=0.5), 32)
     sh_dyn = cat(vel(rep(sh[:8], 8), 0.85), vel(rep(sh[:8], 8), 0.7), vel(rep(sh[:8], 8), 1.0), vel(rep(sh[:8], 8), 0.9))
-    seq.add_track("shaker", ak.shaker, sh_dyn, volume=0.3, pan=-0.3, fx=lp(9000, 2))
+    seq.add_track("shaker", ak.shaker, sh_dyn, volume=0.5, pan=-0.3, fx=lp(9000, 2))
 
-    seq.master_fx.append(master_lp(13000))
+    seq.master_fx.append(chain(sat(1.2), master_lp(13000)))
     return save_loop(seq, "Town", audio_root, tmp_dir)
 
 
@@ -412,7 +428,7 @@ def build_world(audio_root: str, tmp_dir: str) -> str:
     z = merge(at(broken(chA2, [0, 2, 1, 3, 0, 2, 1, 3], [1, .6, .7, .6, .9, .6, .7, .6]), 8),
               at(broken(chB, [0, 1, 2, 3, 2, 3, 1, 2], [1, .6, .8, .7, .9, .6, .7, .6]), 16),
               at(broken(chA2, [0, 2, 1, 3, 0, 2, 1, 3], [1, .6, .7, .6, .9, .6, .7, .6]), 24))
-    seq.add_track("zither", ak.instrument(ak.zither, bright=0.55), vel(z, 0.7), volume=0.42, pan=0.3,
+    seq.add_track("zither", ak.instrument(ak.zither, bright=0.55), vel(z, 0.7), volume=0.5, pan=0.3,
                   fx=rev(0.9, 0.12, 0.5))
 
     # plucked bass
@@ -421,7 +437,7 @@ def build_world(audio_root: str, tmp_dir: str) -> str:
                bassline([roots[c] for c in chA2], "R == R@0.8 F@0.8 R == O@0.7 F@0.7", 0.5, 0.95),
                bassline([roots[c] for c in chB], "R R@0.7 F@0.8 R@0.7 R R@0.7 O@0.8 F@0.7", 0.5, 1.0),
                bassline([roots[c] for c in chA2], "R == R@0.8 F@0.8 R == O@0.7 F@0.7", 0.5, 0.95))
-    seq.add_track("bass", ak.instrument(ak.pluck, bright=0.45), bass, volume=0.42, pan=-0.05, fx=lp(3000))
+    seq.add_track("bass", ak.instrument(ak.pluck, bright=0.45), bass, volume=0.42, pan=-0.05, fx=chain(lp(3000), hp()))
 
     # light drums
     low = rep(hits([0.0], 0.5, 0.75) + hits([2.5], 0.5, 0.55), 32)
@@ -430,14 +446,14 @@ def build_world(audio_root: str, tmp_dir: str) -> str:
     rim = rep(hits([1.0, 3.0], 0.25, 0.4), 32)
     seq.add_track("taiko_low", ak.instrument(ak.taiko, kind="low"), low, volume=0.58)
     seq.add_track("taiko_mid", ak.instrument(ak.taiko, kind="mid"), merge(mid, mid_fill), volume=0.45, pan=0.12)
-    seq.add_track("rim", ak.instrument(ak.taiko, kind="rim"), rim, volume=0.3, pan=-0.2)
+    seq.add_track("rim", ak.instrument(ak.taiko, kind="rim"), rim, volume=0.45, pan=-0.2)
     wb = merge(rep(hits([3.5], 0.25, 0.5), 16, 2), at(rep(hits([1.5], 0.25, 0.4), 8, 1), 16))
-    seq.add_track("block", ak.instrument(ak.wood_block, pitch=1250), wb, volume=0.35, pan=0.4, fx=rev(0.6, 0.15, 0.4))
+    seq.add_track("block", ak.instrument(ak.wood_block, pitch=1250), wb, volume=0.5, pan=0.4, fx=rev(0.6, 0.15, 0.4))
     sh = rep(P("x X x X x X x X", 0.5, velocity=0.6, soft=0.5), 32)
     seq.add_track("shaker", ak.shaker, cat(vel(sh[:64], 0.7), vel(sh[:64], 0.85), vel(sh[:64], 1.0), vel(sh[:64], 0.9)),
-                  volume=0.28, pan=-0.3, fx=lp(9000, 2))
+                  volume=0.45, pan=-0.3, fx=lp(9000, 2))
 
-    seq.master_fx.append(master_lp(13000))
+    seq.master_fx.append(chain(sat(1.15), master_lp(13000)))
     return save_loop(seq, "World", audio_root, tmp_dir)
 
 
@@ -460,7 +476,7 @@ def build_battle(audio_root: str, tmp_dir: str) -> str:
     stab = P("A4+E5 -- -- -- -- -- A4+E5 -- -- -- -- -- A4+E5 -- A4+E5 --", 0.25)
     stabsB = cat(stab, stab, trn(stab, -2), trn(stab, -2), trn(stab, -7), trn(stab, -7), trn(stab, 2), trn(stab, -5))
     riff = cat(vel(riffA, 0.95), vel(riffA2, 1.0), vel(stabsB, 0.9), vel(riffA, 1.0))
-    seq.add_track("zither", ak.instrument(ak.zither, bright=0.9, release=0.3), riff, volume=0.85, pan=0.0,
+    seq.add_track("zither", ak.instrument(ak.zither, bright=1.0, release=0.3), riff, volume=0.85, pan=0.0,
                   fx=chain(lambda x: ak.soft_clip(x, 1.25), rev(0.6, 0.1, 0.6)))
     # second zither: octave double in A'' (bars 25-32), panned left
     seq.add_track("zither2", ak.instrument(ak.zither, bright=0.8, release=0.3), at(vel(trn(riffA, 12), 0.6), 24),
@@ -474,7 +490,7 @@ def build_battle(audio_root: str, tmp_dir: str) -> str:
             "A5 == == == G5 == E5 == | D5 == == == E5 == D5 B4 |"
             "D5 == B4 == A4 == B4 == | E5 == == == == == -- --", 0.5)
     erhu = merge(vel(stabsA, 0.9), at(vel(stabsA, 0.95), 8), at(vel(erB, 1.0), 16), at(vel(stabsA, 1.0), 24))
-    seq.add_track("erhu", ak.instrument(ak.erhu, vib_depth=0.35, glide=0.05), erhu, volume=0.62, pan=0.25,
+    seq.add_track("erhu", ak.instrument(ak.erhu, vib_depth=0.35, glide=0.05), erhu, volume=0.8, pan=0.25,
                   fx=rev(1.0, 0.18, 0.5))
 
     # gong at section starts
@@ -489,7 +505,7 @@ def build_battle(audio_root: str, tmp_dir: str) -> str:
                bassline(rootsA, "R R@0.75 R R@0.75 R R@0.75 O@0.7 R@0.75", 0.5, 1.0),
                bassline(rootsB, "R O@0.7 R O@0.7 R O@0.7 R O@0.7", 0.5, 1.0),
                bassline(rootsA, "R R@0.75 R R@0.75 R R@0.75 R R@0.75", 0.5, 1.0))
-    seq.add_track("bass", ak.instrument(ak.pluck, bright=0.5), bass, volume=0.45, pan=0.0, fx=lp(2500))
+    seq.add_track("bass", ak.instrument(ak.pluck, bright=0.5), bass, volume=0.45, pan=0.0, fx=chain(lp(2500), hp()))
 
     # taiko: 2-bar pattern, fills every 8th bar
     low = rep(hits([0.0, 2.0], 0.5, 0.95) + hits([1.5, 3.5], 0.5, 0.6) +
@@ -499,7 +515,7 @@ def build_battle(audio_root: str, tmp_dir: str) -> str:
     rim = rep(P("x x X x x x X x x x X x x x X X", 0.25, velocity=0.5, soft=0.55), 32)
     seq.add_track("taiko_low", ak.instrument(ak.taiko, kind="low"), low, volume=0.72)
     seq.add_track("taiko_mid", ak.instrument(ak.taiko, kind="mid"), merge(mid, fill), volume=0.55, pan=0.15)
-    seq.add_track("rim", ak.instrument(ak.taiko, kind="rim"), rim, volume=0.32, pan=-0.3, fx=lp(10000))
+    seq.add_track("rim", ak.instrument(ak.taiko, kind="rim"), rim, volume=0.5, pan=-0.3, fx=lp(10000))
 
     seq.master_fx.append(chain(lambda x: ak.soft_clip(x, 1.3), master_lp(15000)))
     return save_loop(seq, "Battle", audio_root, tmp_dir)
@@ -516,7 +532,7 @@ def build_mountain(audio_root: str, tmp_dir: str) -> str:
     groups = [["A2", "E3"], ["A2", "E3"], ["G2", "D3"], ["A2", "E3"], ["C3", "G3"], ["D3", "A3"], ["A2", "E3"], ["A2", "E3"]]
     pad = [(i * 16.0, g, 16.6, 0.8 if i in (4, 5) else 0.7) for i, g in enumerate(groups)]
     seq.add_track("pad", ak.instrument(ak.pad_synth, attack=1.6, release=2.2, cutoff=1100.0, detune=6.0), pad,
-                  volume=1.35, pan=0.0, fx=rev(2.5, 0.25, 0.6))
+                  volume=1.1, pan=0.0, fx=rev(2.5, 0.25, 0.6))
     # wind gusts (two tracks for width); note = band centre in Hz, length in beats
     gustsL = [(0.0, 420.0, 12.0, 0.7), (26.0, 520.0, 10.0, 0.55), (56.0, 380.0, 14.0, 0.75), (96.0, 460.0, 11.0, 0.6)]
     gustsR = [(12.0, 480.0, 11.0, 0.6), (40.0, 600.0, 9.0, 0.5), (74.0, 440.0, 12.0, 0.7), (110.0, 520.0, 12.0, 0.6)]
@@ -529,20 +545,20 @@ def build_mountain(audio_root: str, tmp_dir: str) -> str:
     p3 = P("A5 == == == G5 == E5 == | D5 == == == E5 == == == | C5 == D5 == E5 == == == | A4 == == == == == -- --", 0.5)
     p4 = P("E5 == == == D5 == C5 == | A4 == == == == == == == | G4 == A4 == C5 == == == | A4 == == == == == == ==", 0.5)
     fl = merge(at(vel(p1, 0.7), 2), at(vel(p2, 0.8), 8), at(vel(p3, 0.9), 18), at(vel(p4, 0.75), 26))
-    seq.add_track("flute", ak.instrument(ak.flute, breath=0.45, vib_depth=0.3), fl, volume=0.45, pan=0.0,
+    seq.add_track("flute", ak.instrument(ak.flute, breath=0.45, vib_depth=0.3), fl, volume=0.6, pan=0.0,
                   fx=rev(2.8, 0.35, 0.5, predelay=0.03))
 
     # long erhu notes (slow, wide vibrato)
     er = merge(at(notes([(0.0, "E4", 8.0)]), 5), at(notes([(0.0, "A4", 6.0), (6.0, "G4", 2.0)]), 12),
                at(notes([(0.0, "C5", 4.0), (4.0, "D5", 2.0), (6.0, "A4", 2.0)]), 22),
                at(notes([(2.0, "E4", 6.0)]), 29))
-    seq.add_track("erhu", ak.instrument(ak.erhu, vib_rate=4.3, vib_depth=0.5, attack=0.25, release=0.5), vel(er, 0.55),
-                  volume=0.5, pan=0.2, fx=rev(2.5, 0.3, 0.5))
+    seq.add_track("erhu", ak.instrument(ak.erhu, vib_rate=4.3, vib_depth=0.5, attack=0.25, release=0.5), vel(er, 0.75),
+                  volume=0.65, pan=0.2, fx=rev(2.5, 0.3, 0.5))
 
     # occasional wood block, distant taiko
     wb = merge(*[at(hits([b], 0.25, v), bar) for bar, b, v in
                  ((1, 2.0, .5), (5, 0.0, .45), (9, 3.0, .5), (13, 1.0, .4), (17, 0.0, .55), (20, 2.5, .4), (24, 0.0, .5), (29, 1.0, .45))])
-    seq.add_track("block", ak.instrument(ak.wood_block, pitch=820), wb, volume=0.4, pan=0.4, fx=rev(2.2, 0.4, 0.4))
+    seq.add_track("block", ak.instrument(ak.wood_block, pitch=820), wb, volume=0.5, pan=0.4, fx=rev(2.2, 0.4, 0.4))
     tk = merge(at(hits([0.0], 1.0, .5), 0), at(hits([0.0], 1.0, .45), 16), at(hits([2.0], 1.0, .35), 24))
     seq.add_track("taiko", ak.instrument(ak.taiko, kind="low"), tk, volume=0.4, fx=rev(3.0, 0.45, 0.7))
 
@@ -560,7 +576,7 @@ def build_cave(audio_root: str, tmp_dir: str) -> str:
     drones = [(0.0, ["D2", "A2"], 32.6, 0.8), (32.0, ["D2", "A2"], 32.6, 0.8), (64.0, ["D2", "G#2"], 32.6, 0.85),
               (96.0, ["D2", "A2"], 32.6, 0.8)]
     seq.add_track("drone", ak.instrument(ak.pad_synth, attack=2.5, release=3.0, cutoff=650.0, detune=9.0), drones,
-                  volume=1.5, pan=0.0)
+                  volume=0.95, pan=0.0)
     # a second, higher drone voice that drifts: D3 for 16 bars, then C3 / G#3 / D3
     drift = [(0.0, "D3", 64.5, 0.35), (64.0, "C3", 16.5, 0.35), (80.0, "G#3", 16.5, 0.3), (96.0, "D3", 32.5, 0.35)]
     seq.add_track("drift", ak.instrument(ak.pad_synth, attack=3.0, release=3.0, cutoff=900.0, detune=14.0), drift,
@@ -572,7 +588,7 @@ def build_cave(audio_root: str, tmp_dir: str) -> str:
     bells = [(0, "D4", .55), (8, "A3", .45), (12, "G3", .28), (16, "F4", .5), (24, "D4", .5), (28, "A3", .3)]
     seq.add_track("bell", ak.instrument(ak.temple_bell, use_note_freq=True, dur=4.5),
                   merge(*[at(notes([(0.0, n, 2.0)], v), b) for b, n, v in bells]),
-                  volume=0.55, pan=0.1, fx=rev(4.0, 0.35, 0.6))
+                  volume=0.9, pan=0.1, fx=rev(4.0, 0.35, 0.6))
 
     # water drops: deterministic pseudo-random placement, two tracks for spread
     rng = np.random.default_rng(7)
@@ -584,14 +600,14 @@ def build_cave(audio_root: str, tmp_dir: str) -> str:
         (dripsL if rng.random() < 0.5 else dripsR).append(ev)
         t += float(1.5 + 5.0 * rng.random())
     cave_echo = chain(lambda x: ak.delay(x, 0.37, 0.42, 0.4, damp=0.35), rev(3.2, 0.35, 0.5))
-    seq.add_track("dripL", drip, dripsL, volume=0.5, pan=-0.45, fx=cave_echo)
-    seq.add_track("dripR", drip, dripsR, volume=0.5, pan=0.45, fx=cave_echo)
+    seq.add_track("dripL", drip, dripsL, volume=0.9, pan=-0.45, fx=cave_echo)
+    seq.add_track("dripR", drip, dripsR, volume=0.9, pan=0.45, fx=cave_echo)
 
     # sparse low zither: group starts, and a slow falling line in the tritone section
     z = merge(*[at(notes([(0.0, n, 2.0)], v), b) for b, n, v in
                 ((0, "D3", .55), (4, "A2", .4), (8, "D3", .5), (12, "F3", .4), (20, "F3", .5), (21, "D3", .45),
                  (22, "C3", .45), (23, "A2", .5), (24, "D3", .55), (28, "A2", .4))])
-    seq.add_track("zither", ak.instrument(ak.zither, bright=0.3, release=1.5), z, volume=0.6, pan=0.0,
+    seq.add_track("zither", ak.instrument(ak.zither, bright=0.3, release=1.5), z, volume=0.9, pan=0.0,
                   fx=rev(3.5, 0.45, 0.6))
 
     seq.master_fx.append(master_lp(9000))
@@ -613,8 +629,8 @@ def build_sect(audio_root: str, tmp_dir: str) -> str:
                  chord_bars([V[c] for c in chA], (0.0, 2.0), 1.9, 0.75),
                  chord_bars([V[c] for c in chB], (0.0, 2.0, 3.0), 1.9, 0.9),
                  chord_bars([V[c] for c in chA], (0.0, 2.0), 1.9, 0.9))
-    seq.add_track("zither", ak.instrument(ak.zither, bright=0.5, release=1.0), chords, volume=0.75, pan=-0.15,
-                  fx=rev(1.6, 0.2, 0.5))
+    seq.add_track("zither", ak.instrument(ak.zither, bright=0.5, release=1.0), chords, volume=0.62, pan=-0.15,
+                  fx=chain(sat(1.5), rev(1.6, 0.2, 0.5)))
 
     A = P("C5 == == == D5 == C5 == | A4 == == == == == F4 G4 |"
           "A4 == C5 == D5 == == == | C5 == == == G4 == == == |"
@@ -644,9 +660,9 @@ def build_sect(audio_root: str, tmp_dir: str) -> str:
                   volume=0.6, fx=rev(1.2, 0.15, 0.6))
     seq.add_track("taiko_mid", ak.instrument(ak.taiko, kind="mid"), mid, volume=0.42, pan=0.12, fx=rev(1.2, 0.15, 0.6))
     seq.add_track("bell", ak.instrument(ak.temple_bell, freq=196.0, dur=3.5),
-                  merge(at(hits([0.0], 1.0, .35), 0), at(hits([0.0], 1.0, .4), 16)), volume=0.45, pan=0.1)
+                  merge(at(hits([0.0], 1.0, .35), 0), at(hits([0.0], 1.0, .4), 16)), volume=0.7, pan=0.1)
 
-    seq.master_fx.append(master_lp(12000))
+    seq.master_fx.append(chain(sat(1.2), master_lp(12000)))
     return save_loop(seq, "Sect", audio_root, tmp_dir)
 
 
@@ -661,9 +677,17 @@ def build_dark(audio_root: str, tmp_dir: str) -> str:
     rootsB = ["C3", "C3", "D3", "D3", "F2", "F2", "E2", "E2"]
     pulse = "R R@0.6 R@0.85 R@0.6 R R@0.6 R@0.85 N@0.7"
     pulse2 = "R R@0.6 R@0.85 O@0.55 R R@0.6 R@0.85 N@0.7"
-    bass = cat(bassline(rootsA, pulse, 0.5, 0.9), bassline(rootsA, pulse2, 0.5, 0.95),
-               bassline(rootsB, pulse2, 0.5, 1.0), bassline(rootsA, pulse2, 0.5, 1.0))
-    seq.add_track("bass", ak.instrument(ak.pluck, bright=0.3, duty=0.35), bass, volume=0.5, pan=0.0, fx=lp(1800))
+
+    def pulse_bass(roots, template, velocity):
+        # The last 8th of each bar is an approach note a whole step BELOW the root ("N");
+        # under F and C that would be Eb / Bb (outside A minor pentatonic), so those bars
+        # approach from a whole step ABOVE ("S": G under F, D under C) and stay diatonic.
+        return cat(*[bassline([r], template.replace("N@", "S@") if r[0] in "FC" else template, 0.5, velocity)
+                     for r in roots])
+
+    bass = cat(pulse_bass(rootsA, pulse, 0.9), pulse_bass(rootsA, pulse2, 0.95),
+               pulse_bass(rootsB, pulse2, 1.0), pulse_bass(rootsA, pulse2, 1.0))
+    seq.add_track("bass", ak.instrument(ak.pluck, bright=0.3, duty=0.35), bass, volume=0.5, pan=0.0, fx=chain(lp(1800), hp()))
 
     pad = [(b * 4.0, r, 4.3, 0.55) for b, r in enumerate(rootsA + rootsA + rootsB + rootsA)]
     seq.add_track("pad", ak.instrument(ak.pad_synth, attack=0.8, release=1.0, cutoff=520.0, detune=7.0), pad,
@@ -687,7 +711,7 @@ def build_dark(audio_root: str, tmp_dir: str) -> str:
 
     rim = rep(hits([2.5], 0.25, 0.5) + ak.shift_pattern(hits([1.5], 0.25, 0.4) + hits([3.75], 0.25, 0.35), 4), 16)
     rimB = rep(hits([1.5, 3.5], 0.25, 0.5) + ak.shift_pattern(hits([0.5, 2.5, 3.75], 0.25, 0.45), 4), 4)
-    seq.add_track("rim", ak.instrument(ak.taiko, kind="rim"), merge(rim, at(rimB, 16)), volume=0.4, pan=0.3,
+    seq.add_track("rim", ak.instrument(ak.taiko, kind="rim"), merge(rim, at(rimB, 16)), volume=0.55, pan=0.3,
                   fx=rev(1.4, 0.3, 0.5))
     low = rep(hits([0.0], 1.0, 0.55), 32)
     lowB = rep(hits([2.5], 1.0, 0.45), 8)
@@ -720,8 +744,8 @@ def build_night(audio_root: str, tmp_dir: str) -> str:
             vel(cat(*[arp(V[c], o8, 0.5, 1.0, a8) for c in chA]), 0.85),
             vel(cat(*[arp(V[c], o16, 0.25, 1.0, a16) for c in chB]), 0.95),
             vel(cat(*[arp(V[c], o16, 0.25, 1.0, a16) for c in chA]), 0.85))
-    seq.add_track("zither", ak.instrument(ak.zither, bright=0.45, release=0.9), z, volume=0.7, pan=-0.2,
-                  fx=rev(2.2, 0.25, 0.5))
+    seq.add_track("zither", ak.instrument(ak.zither, bright=0.45, release=0.9), z, volume=0.6, pan=-0.2,
+                  fx=chain(sat(1.3), rev(2.2, 0.25, 0.5)))
 
     A = P("-- -- -- -- A4 == == == | D5 == == == == == C5 == |"
           "D5 == F5 == D5 == == == | C5 == == == == == A4 == |"
@@ -744,7 +768,7 @@ def build_night(audio_root: str, tmp_dir: str) -> str:
     pad = [(b * 4.0, roots[c], 4.3, 0.5) for b, c in enumerate(chA + chA + chB + chA) if b >= 8]
     seq.add_track("pad", ak.instrument(ak.pad_synth, attack=0.8, release=1.0, cutoff=600.0), pad, volume=0.9, pan=0.0)
 
-    seq.master_fx.append(master_lp(11000))
+    seq.master_fx.append(chain(sat(1.15), master_lp(11000)))
     return save_loop(seq, "Night", audio_root, tmp_dir)
 
 
@@ -823,8 +847,8 @@ def build_title(audio_root: str, tmp_dir: str) -> str:
             vel(cat(*[arp(V[c], o8, 0.5, 1.0, a8) for c in chA]), 0.85),
             vel(cat(*[arp(V[c], o8b, 0.5, 1.0, a8) for c in chB]), 0.95),
             vel(cat(*[arp(V[c], o8, 0.5, 1.0, a8) for c in chA]), 0.85))
-    seq.add_track("zither", ak.instrument(ak.zither, bright=0.5, release=0.9), z, volume=0.75, pan=-0.15,
-                  fx=rev(1.8, 0.22, 0.5))
+    seq.add_track("zither", ak.instrument(ak.zither, bright=0.5, release=0.9), z, volume=0.62, pan=-0.15,
+                  fx=chain(sat(1.5), rev(1.8, 0.22, 0.5)))
 
     M = P("E5 == == == G5 == A5 == | G5 == == == E5 == == == |"
           "D5 == E5 == C5 == D5 == | D5 == == == == == -- -- |"
@@ -848,11 +872,11 @@ def build_title(audio_root: str, tmp_dir: str) -> str:
 
     sparkle = merge(at(notes([(3.5, "G6", 0.5)], .35), 3), at(notes([(3.5, "E6", 0.5)], .35), 11),
                     at(notes([(1.5, "A6", 0.5)], .4), 19), at(notes([(3.5, "G6", 0.5)], .35), 27))
-    seq.add_track("bell", ak.bell, sparkle, volume=0.4, pan=0.4, fx=rev(2.5, 0.4, 0.4))
+    seq.add_track("bell", ak.bell, sparkle, volume=0.8, pan=0.4, fx=rev(2.5, 0.4, 0.4))
     tk = merge(*[at(hits([0.0], 1.0, .4), b) for b in range(16, 32, 2)])
-    seq.add_track("taiko", ak.instrument(ak.taiko, kind="low"), tk, volume=0.4, fx=rev(2.5, 0.4, 0.7))
+    seq.add_track("taiko", ak.instrument(ak.taiko, kind="low"), tk, volume=0.5, fx=rev(2.5, 0.4, 0.7))
 
-    seq.master_fx.append(master_lp(12000))
+    seq.master_fx.append(chain(sat(1.2), master_lp(12000)))
     return save_loop(seq, "Title", audio_root, tmp_dir)
 
 
@@ -871,7 +895,7 @@ def build_victory(audio_root: str, tmp_dir: str) -> str:
     final = strum(["G3", "D4", "G4", "B4", "D5", "G5"], 6.0, 3.0, 1.0, 0.05)
     seq.add_track("chord", ak.instrument(ak.zither, bright=0.6, release=1.5), final, volume=0.7, pan=0.1, fx=rev(1.8, 0.25, 0.5))
     seq.add_track("gong", ak.instrument(ak.gong, dur=3.5, freq=96.0),
-                  merge(hits([0.0], 1.0, .85), notes([(6.0, 130.0, 1.0)], .55)), volume=0.55, pan=-0.1)
+                  hits([0.0], 1.0, .85) + hits([6.0], 1.0, .55), volume=0.55, pan=-0.1)
     seq.add_track("taiko_low", ak.instrument(ak.taiko, kind="low"),
                   hits([0.0, 1.0, 2.0, 3.0], 0.5, .8) + hits([4.0, 6.0], 0.5, 1.0), volume=0.65)
     seq.add_track("taiko_mid", ak.instrument(ak.taiko, kind="mid"),

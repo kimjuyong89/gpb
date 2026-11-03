@@ -153,14 +153,23 @@ static readonly Dictionary<string, string> IconByName = new()
 
 static string IconOf(ItemData i) => IconByName.TryGetValue(i.name, out var icon) ? icon : i.kind switch
 {
-    ItemKind.Weapon => i.weapon == WeaponType.Dagger ? "dagger" : "jian",
+    ItemKind.Weapon => i.weapon switch
+    {
+        WeaponType.Dagger => "dagger",
+        WeaponType.Blade => "dao",          // 도법 무기 (오호단문도)
+        WeaponType.Fist => "fist_wraps",    // 권법 무기
+        _ => "jian",
+    },
     ItemKind.Clothes => "robe",
     ItemKind.Gloves => "glove",
     ItemKind.Consumable or ItemKind.Elixir => "pill",
     ItemKind.Manual => "manual",
-    _ => null,
+    _ => null,                              // 신발·장신구는 지금처럼 한자(履·珮)
 };
 ```
+
+`WeaponType`에는 `Sword, Dagger, Fist, Blade`가 있고(`Combat/ItemData.cs`), 현재 코드는 단검 말고는 전부
+`jian`을 쓴다. 위처럼 `dao`·`fist_wraps`를 나눠 주면 도·권 무기가 생겼을 때 바로 구분된다.
 
 ## 5. 검수용 그림
 
