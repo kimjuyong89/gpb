@@ -481,7 +481,7 @@ HAIR_STYLES: Dict[str, Dict[str, Tuple[List[str], int, int]]] = {
     "bun_pin": {
         "down": ([".GHHHHG.", ".HHHHHH.", "HUHHHHHH", "HH....HH", "H......H"], -1, -1),
         "up":   ([".GHHHHG.", ".HHHHHH.", "HUHHHHHH", "HHHHHHHH", "HHHHHHHH", ".HHHHHH."], -1, -1),
-        "left": ([".HHHHHH..", ".HUHHHHHHG", "....HHHHH", ".....HHH.", ".....HH.."], -1, 0),
+        "left": ([".HHHHHHG.", ".HUHHHHHH", "....HHHHH", ".....HHH.", ".....HH.."], -1, 0),
     },
     "ponytail_high": {
         "down": (["...HH...", ".HHHHHH.", "HUHHHHHH", "HH....HH", "H......H", ".......H", ".......H"], -1, -1),
@@ -923,9 +923,11 @@ def _compose_grid(s: Dict[str, object], d: str, pose: str) -> Grid:
     g.blit(body.shifted(bdx, bdy))
     # hip weapon / carried prop in walk frames
     weapon = str(s["weapon"])
+    width = int(build["width"])
     if s.get("hip_weapon") and pose in WALK_POSES and weapon in BLADES:
+        wx = {"down": -width, "up": width, "left": max(width, 0)}[d]
         for (x, dy, ch) in _HIP_WEAPON[d]:
-            g.set(x + bdx, sash_y + dy + bdy, ch)
+            g.set(x + wx + bdx, sash_y + dy + bdy, ch)
     carry = str(s.get("carry", "none"))
     if carry != "none" and pose in WALK_POSES + ("hurt",):
         rows, dx, dy = CARRY[carry][d]

@@ -598,3 +598,281 @@ def build_sect(audio_root: str, tmp_dir: str) -> str:
 
     seq.master_fx.append(lp(12000))
     return save_loop(seq, "Sect", audio_root, tmp_dir)
+
+
+# ==========================================================================================
+# Dark  --  흑사방 (black-snake gang; low, tense).  A minor pentatonic (A C D E G) with an
+# Andalusian bass descent (A G F E), 100 BPM, 32 bars.  Low pulsing plucked bass, erhu
+# minor melody, sparse rim hits, dark pad, low zither doubling in A' and A''.
+# ==========================================================================================
+def build_dark(audio_root: str, tmp_dir: str) -> str:
+    seq = ak.Sequencer(100)
+    rootsA = ["A2", "A2", "A2", "A2", "G2", "G2", "F2", "E2"]
+    rootsB = ["C3", "C3", "D3", "D3", "F2", "F2", "E2", "E2"]
+    pulse = "R R@0.6 R@0.85 R@0.6 R R@0.6 R@0.85 N@0.7"
+    pulse2 = "R R@0.6 R@0.85 O@0.55 R R@0.6 R@0.85 N@0.7"
+    bass = cat(bassline(rootsA, pulse, 0.5, 0.9), bassline(rootsA, pulse2, 0.5, 0.95),
+               bassline(rootsB, pulse2, 0.5, 1.0), bassline(rootsA, pulse2, 0.5, 1.0))
+    seq.add_track("bass", ak.instrument(ak.pluck, bright=0.3, duty=0.35), bass, volume=0.5, pan=0.0, fx=lp(1800))
+
+    pad = [(b * 4.0, r, 4.3, 0.55) for b, r in enumerate(rootsA + rootsA + rootsB + rootsA)]
+    seq.add_track("pad", ak.instrument(ak.pad_synth, attack=0.8, release=1.0, cutoff=520.0, detune=7.0), pad,
+                  volume=1.1, pan=0.0, fx=rev(2.0, 0.2, 0.7))
+
+    A = P("E4 == == == G4 == E4 == | D4 == == == == == C4 D4 |"
+          "E4 == == == A4 == G4 == | E4 == == == == == -- -- |"
+          "G4 == == == A4 == G4 == | E4 == D4 == == == -- -- |"
+          "C4 == D4 == E4 == == == | D4 == E4 == == == == ==", 0.5)
+    B = P("G4 == == == A4 == C5 == | G4 == E4 == == == -- -- |"
+          "A4 == == == C5 == D5 == | A4 == == == == == -- -- |"
+          "C5 == D5 == C5 == A4 == | G4 == == == == == A4 == |"
+          "G4 == E4 == D4 == E4 == | E4 == == == == == == ==", 0.5)
+    A2 = P("E4 == == == G4 == E4 == | D4 == == == == == C4 D4 |"
+           "E4 == == == A4 == G4 == | E4 == == == == == -- -- |"
+           "G4 == A4 == C5 == A4 == | G4 == E4 == D4 == -- -- |"
+           "C4 == D4 == E4 == G4 == | E4 == D4 == == == == ==", 0.5)
+    erhu = cat(vel(A, 0.8), vel(A2, 0.9), vel(B, 1.0), vel(A2, 0.95))
+    seq.add_track("erhu", ak.instrument(ak.erhu, vib_depth=0.45, vib_rate=4.8, glide=0.09), erhu, volume=0.55, pan=0.0,
+                  fx=rev(1.8, 0.25, 0.6))
+
+    rim = rep(hits([2.5], 0.25, 0.5) + ak.shift_pattern(hits([1.5], 0.25, 0.4) + hits([3.75], 0.25, 0.35), 4), 16)
+    rimB = rep(hits([1.5, 3.5], 0.25, 0.5) + ak.shift_pattern(hits([0.5, 2.5, 3.75], 0.25, 0.45), 4), 4)
+    seq.add_track("rim", ak.instrument(ak.taiko, kind="rim"), merge(rim, at(rimB, 16)), volume=0.4, pan=0.3,
+                  fx=rev(1.4, 0.3, 0.5))
+    low = rep(hits([0.0], 1.0, 0.55), 32)
+    lowB = rep(hits([2.5], 1.0, 0.45), 8)
+    seq.add_track("taiko", ak.instrument(ak.taiko, kind="low"), merge(low, at(lowB, 16)), volume=0.5, fx=rev(1.2, 0.15, 0.7))
+
+    zl = [(b * 4.0, r, 1.5, 0.5) for b, r in list(enumerate(rootsA + rootsA + rootsB + rootsA)) if 8 <= b < 16 or b >= 24]
+    seq.add_track("zither", ak.instrument(ak.zither, bright=0.3, release=0.8), zl, volume=0.5, pan=-0.2)
+
+    seq.master_fx.append(lp(10000))
+    return save_loop(seq, "Dark", audio_root, tmp_dir)
+
+
+# ==========================================================================================
+# Night  --  백로진의 밤 (the night the town burns; tragic).  D minor pentatonic (D F G A C)
+# with Bb / A harmonies, 66 BPM, 32 bars.  Form A(1-8) A'(9-16) B(17-24) A''(25-32).
+# Slow erhu melody over zither arpeggios, temple bell, low pad.
+# ==========================================================================================
+def build_night(audio_root: str, tmp_dir: str) -> str:
+    seq = ak.Sequencer(66)
+    V = {"Dm": ["D3", "A3", "D4", "F4", "A4"], "Bb": ["A#2", "F3", "A#3", "D4", "F4"], "F": ["F3", "C4", "F4", "A4", "C5"],
+         "Gm": ["G3", "D4", "G4", "A#4", "D5"], "Am": ["A3", "E4", "A4", "C5", "E5"], "C": ["C3", "G3", "C4", "E4", "G4"],
+         "A5": ["A3", "E4", "A4", "E5", "A5"]}
+    chA = ["Dm", "Dm", "Bb", "F", "Gm", "Dm", "Am", "Dm"]
+    chB = ["F", "C", "Dm", "Am", "Bb", "F", "Gm", "A5"]
+    o8 = [0, 1, 2, 3, 4, 3, 2, 1]
+    a8 = [1, .55, .7, .6, .85, .6, .7, .55]
+    o16 = [0, 1, 2, 3, 4, 3, 2, 3, 4, 3, 2, 3, 4, 3, 2, 1]
+    a16 = [1, .5, .65, .55, .8, .55, .65, .5, .85, .5, .65, .55, .8, .55, .65, .5]
+    z = cat(vel(cat(*[arp(V[c], o8, 0.5, 1.0, a8) for c in chA]), 0.75),
+            vel(cat(*[arp(V[c], o8, 0.5, 1.0, a8) for c in chA]), 0.85),
+            vel(cat(*[arp(V[c], o16, 0.25, 1.0, a16) for c in chB]), 0.95),
+            vel(cat(*[arp(V[c], o16, 0.25, 1.0, a16) for c in chA]), 0.85))
+    seq.add_track("zither", ak.instrument(ak.zither, bright=0.45, release=0.9), z, volume=0.7, pan=-0.2,
+                  fx=rev(2.2, 0.25, 0.5))
+
+    A = P("-- -- -- -- A4 == == == | D5 == == == == == C5 == |"
+          "D5 == F5 == D5 == == == | C5 == == == == == A4 == |"
+          "G4 == == == A4 == C5 == | D5 == == == == == F5 == |"
+          "E5 == D5 == C5 == == == | D5 == == == == == == ==", 0.5)
+    B = P("F5 == == == G5 == A5 == | G5 == == == == == F5 == |"
+          "D5 == F5 == A5 == G5 == | E5 == == == == == -- -- |"
+          "D5 == F5 == D5 == C5 == | A4 == C5 == A4 == == == |"
+          "G4 == == == A4 == A#4 == | A4 == == == == == == ==", 0.5)
+    erhu = cat(vel(A, 0.7), vel(A, 0.85), vel(B, 1.0), vel(A, 0.9))
+    seq.add_track("erhu", ak.instrument(ak.erhu, vib_depth=0.55, vib_rate=4.6, glide=0.1, attack=0.08), erhu,
+                  volume=0.6, pan=0.1, fx=rev(2.6, 0.3, 0.5, predelay=0.02))
+
+    bells = [(0, .5), (8, .45), (16, .6), (24, .5)]
+    seq.add_track("bell", ak.instrument(ak.temple_bell, freq=146.8, dur=5.0),
+                  merge(*[at(hits([0.0], 1.0, v), b) for b, v in bells] + [at(hits([2.0], 1.0, .4), 31)]),
+                  volume=0.55, pan=0.15, fx=rev(3.0, 0.3, 0.6))
+
+    roots = {"Dm": "D2", "Bb": "A#1", "F": "F2", "Gm": "G2", "Am": "A2", "C": "C2", "A5": "A2"}
+    pad = [(b * 4.0, roots[c], 4.3, 0.5) for b, c in enumerate(chA + chA + chB + chA) if b >= 8]
+    seq.add_track("pad", ak.instrument(ak.pad_synth, attack=0.8, release=1.0, cutoff=600.0), pad, volume=0.9, pan=0.0)
+
+    seq.master_fx.append(lp(11000))
+    return save_loop(seq, "Night", audio_root, tmp_dir)
+
+
+# ==========================================================================================
+# Demon  --  심마 (inner demon; dissonant).  C / F# tritone axis, 120 BPM, 16 bars.
+# Detuned pads on tritone clusters, wailing erhu (glides from a tritone below), zither
+# tremolo semitone clusters, irregular taiko groupings, gongs and tritone bells.
+# ==========================================================================================
+def build_demon(audio_root: str, tmp_dir: str) -> str:
+    seq = ak.Sequencer(120)
+    pads = [(0.0, ["C2", "F#2"], 16.4, 0.8), (16.0, ["C2", "F#2", "G2"], 16.4, 0.85), (32.0, ["C#2", "G2"], 16.4, 0.85),
+            (48.0, ["C2", "F#2", "C#3"], 16.4, 0.95)]
+    seq.add_track("pad", ak.instrument(ak.pad_synth, attack=1.0, release=1.5, cutoff=1500.0, detune=28.0), pads,
+                  volume=1.3, pan=0.0, fx=rev(2.5, 0.3, 0.6))
+    seq.add_track("pad_hi", ak.instrument(ak.pad_synth, attack=2.0, release=2.0, cutoff=2600.0, detune=45.0),
+                  [(8.0, ["F#4", "G4"], 8.4, 0.35), (40.0, ["C#5", "D5"], 8.4, 0.4), (56.0, ["F#4", "C5"], 8.4, 0.45)],
+                  volume=1.0, pan=0.3, fx=rev(3.0, 0.4, 0.5))
+
+    wail = ak.instrument(ak.erhu, glide=0.35, from_semitones=-6, vib_depth=0.8, vib_rate=6.5, attack=0.08, release=0.3)
+    er = merge(at(notes([(0.0, "C5", 2.0), (2.0, "F#5", 2.0)], 0.9), 0),
+               at(P("F#5 == == == G5 == F#5 == | C5 == == == == == -- --", 0.5, velocity=0.9), 2),
+               at(notes([(1.0, "C#5", 1.5), (2.5, "G5", 1.5)], 1.0), 5),
+               at(notes([(0.0, "F#5", 3.0), (3.0, "F5", 1.0)], 1.0), 7),
+               at(notes([(0.0, "C6", 2.0), (2.0, "F#5", 2.0)], 1.0), 8),
+               at(P("G5 == F#5 == C5 == C#5 == | F#5 == == == == == == ==", 0.5, velocity=1.0), 10),
+               at(notes([(0.5, "C#6", 1.5), (2.0, "G5", 2.0)], 1.0), 13),
+               at(notes([(0.0, "F#5", 2.5), (2.5, "C5", 1.5)], 1.0), 15))
+    seq.add_track("erhu", wail, er, volume=0.6, pan=0.0, fx=rev(2.2, 0.3, 0.5))
+
+    trem = merge(*[at(notes([(0.0, ["C5", "C#5"], 2.0)], v), b) for b, v in ((1, .6), (6, .7), (9, .75), (12, .85), (14, .9))])
+    seq.add_track("tremolo", tremolo_zither, trem, volume=0.5, pan=-0.3, fx=rev(1.5, 0.25, 0.5))
+
+    grp = [[0.0, 0.75, 1.5, 2.25, 3.0, 3.75], [0.0, 0.5, 1.25, 2.0, 2.5, 3.25], [0.0, 0.75, 1.25, 2.0, 2.75, 3.5],
+           [0.0, 0.5, 1.0, 1.75, 2.5, 3.0, 3.5]]
+    low: Pattern = []
+    mid: Pattern = []
+    for b in range(16):
+        g = grp[b % 4]
+        base = 0.6 + 0.4 * (b / 15.0)
+        low.extend(at(hits(g[::2], 0.5, base) + hits(g[1::2], 0.5, base * 0.7), b))
+        mid.extend(at(hits([p + 0.25 for p in g[1::2]], 0.25, base * 0.6), b))
+    rimb = merge(*[at(hits([3.0, 3.25, 3.5, 3.75], 0.25, 0.6 + 0.1 * (b // 4)), b) for b in (3, 7, 11, 13, 15)])
+    seq.add_track("taiko_low", ak.instrument(ak.taiko, kind="low"), low, volume=0.7, fx=rev(1.0, 0.12, 0.7))
+    seq.add_track("taiko_mid", ak.instrument(ak.taiko, kind="mid"), mid, volume=0.5, pan=0.2)
+    seq.add_track("rim", ak.instrument(ak.taiko, kind="rim"), rimb, volume=0.4, pan=-0.3)
+
+    seq.add_track("gong", ak.instrument(ak.gong, dur=3.5, freq=80.0, shimmer=0.9),
+                  merge(at(hits([0.0], 1.0, .7), 0), at(hits([0.0], 1.0, .75), 8), at(hits([3.0], 1.0, .5), 15)),
+                  volume=0.5, pan=-0.1)
+    seq.add_track("bell", ak.bell, merge(at(notes([(0.0, ["C6", "F#6"], 1.0)], .5), 4), at(notes([(2.0, ["C#6", "G6"], 1.0)], .55), 11)),
+                  volume=0.45, pan=0.35, fx=rev(2.5, 0.35, 0.4))
+    seq.add_track("tbell", ak.instrument(ak.temple_bell, freq=370.0, dur=4.0), at(hits([0.0], 1.0, .45), 8), volume=0.5, pan=0.2)
+
+    bass = P("C2 C2@0.6 -- C2 F#2@0.8 -- C2 C2@0.6 | C2 -- C2@0.7 F#2 -- C2 C#2@0.8 -- |"
+             "C2 C2@0.6 -- C2 F#2@0.8 -- C2 C2@0.6 | C2 -- C2@0.7 G2 -- C#2 C2@0.8 --", 0.5)
+    seq.add_track("bass", ak.nes_bass_tri, rep(bass, 4), volume=0.45, pan=0.0, fx=lp(1500))
+
+    seq.master_fx.append(chain(lambda x: ak.soft_clip(x, 1.2), lp(12000)))
+    return save_loop(seq, "Demon", audio_root, tmp_dir)
+
+
+# ==========================================================================================
+# Title  --  calm.  C major pentatonic (C D E G A), 76 BPM, 32 bars.  Arpeggiated zither
+# throughout, flute melody entering at bar 9, soft pad, bell sparkles, distant taiko in B.
+# ==========================================================================================
+def build_title(audio_root: str, tmp_dir: str) -> str:
+    seq = ak.Sequencer(76)
+    V = {"C": ["C3", "G3", "C4", "E4", "G4"], "Am": ["A2", "E3", "A3", "C4", "E4"], "F": ["F3", "C4", "F4", "A4", "C5"],
+         "G": ["G2", "D3", "G3", "A3", "D4"]}
+    chA = ["C", "Am", "F", "G", "C", "Am", "F", "G"]
+    chB = ["Am", "F", "C", "G", "Am", "F", "G", "G"]
+    o8 = [0, 1, 2, 3, 4, 3, 2, 1]
+    a8 = [1, .55, .7, .6, .85, .6, .7, .55]
+    o8b = [0, 2, 1, 3, 4, 3, 1, 2]
+    z = cat(vel(cat(*[arp(V[c], o8, 0.5, 1.0, a8) for c in chA]), 0.75),
+            vel(cat(*[arp(V[c], o8, 0.5, 1.0, a8) for c in chA]), 0.85),
+            vel(cat(*[arp(V[c], o8b, 0.5, 1.0, a8) for c in chB]), 0.95),
+            vel(cat(*[arp(V[c], o8, 0.5, 1.0, a8) for c in chA]), 0.85))
+    seq.add_track("zither", ak.instrument(ak.zither, bright=0.5, release=0.9), z, volume=0.75, pan=-0.15,
+                  fx=rev(1.8, 0.22, 0.5))
+
+    M = P("E5 == == == G5 == A5 == | G5 == == == E5 == == == |"
+          "D5 == E5 == C5 == D5 == | D5 == == == == == -- -- |"
+          "E5 == G5 == A5 == C6 == | A5 == G5 == E5 == == == |"
+          "D5 == E5 == G5 == E5 == | D5 == == == C5 == == ==", 0.5)
+    MB = P("A5 == == == G5 == E5 == | D5 == E5 == D5 == C5 == |"
+           "E5 == == == G5 == == == | D5 == == == == == -- -- |"
+           "C5 == D5 == E5 == G5 == | A5 == G5 == E5 == D5 == |"
+           "D5 == E5 == D5 == C5 == | D5 == == == == == -- --", 0.5)
+    M2 = P("E5 == == == G5 == A5 == | G5 == == == E5 == == == |"
+           "D5 == E5 == C5 == D5 == | D5 == == == == == -- -- |"
+           "E5 == G5 == A5 == C6 == | A5 == G5 == E5 == == == |"
+           "D5 == E5 == G5 == E5 == | C5 == == == == == == ==", 0.5)
+    fl = merge(at(vel(M, 0.8), 8), at(vel(MB, 0.95), 16), at(vel(M2, 0.85), 24))
+    seq.add_track("flute", ak.instrument(ak.flute, vib_depth=0.22, breath=0.3), fl, volume=0.42, pan=0.0,
+                  fx=rev(2.2, 0.28, 0.5, predelay=0.02))
+
+    roots = {"C": "C3", "Am": "A2", "F": "F2", "G": "G2"}
+    pad = [(b * 4.0, roots[c], 4.3, 0.5) for b, c in enumerate(chA + chA + chB + chA)]
+    seq.add_track("pad", ak.instrument(ak.pad_synth, attack=0.9, release=1.0, cutoff=800.0), pad, volume=0.9, pan=0.0)
+
+    sparkle = merge(at(notes([(3.5, "G6", 0.5)], .35), 3), at(notes([(3.5, "E6", 0.5)], .35), 11),
+                    at(notes([(1.5, "A6", 0.5)], .4), 19), at(notes([(3.5, "G6", 0.5)], .35), 27))
+    seq.add_track("bell", ak.bell, sparkle, volume=0.4, pan=0.4, fx=rev(2.5, 0.4, 0.4))
+    tk = merge(*[at(hits([0.0], 1.0, .4), b) for b in range(16, 32, 2)])
+    seq.add_track("taiko", ak.instrument(ak.taiko, kind="low"), tk, volume=0.4, fx=rev(2.5, 0.4, 0.7))
+
+    seq.master_fx.append(lp(12000))
+    return save_loop(seq, "Title", audio_root, tmp_dir)
+
+
+# ==========================================================================================
+# Victory  --  ~5 s sting (non-loop): gong + rising G major pentatonic fanfare (flute and
+# zither in octaves), taiko roll, final rolled chord and a second gong; cosine fade-out.
+# ==========================================================================================
+def build_victory(audio_root: str, tmp_dir: str) -> str:
+    seq = ak.Sequencer(120)
+    fan = P("G5 A5 B5 D6 E6 == == == D6 == E6 == G6 == == == |"
+            "A6 == G6 == E6 == D6 == G6 == == == == == == == |"
+            "-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --", 0.25)
+    seq.add_track("flute", ak.instrument(ak.flute, vib_depth=0.3), fan, volume=0.5, pan=0.0, fx=rev(1.6, 0.25, 0.5))
+    seq.add_track("zither", ak.instrument(ak.zither, bright=0.8), trn(fan, -12), volume=0.8, pan=-0.2, fx=rev(1.2, 0.18, 0.5))
+    seq.add_track("zither2", ak.instrument(ak.zither, bright=0.6), trn(fan, -24), volume=0.5, pan=0.2)
+    final = strum(["G3", "D4", "G4", "B4", "D5", "G5"], 6.0, 3.0, 1.0, 0.05)
+    seq.add_track("chord", ak.instrument(ak.zither, bright=0.6, release=1.5), final, volume=0.7, pan=0.1, fx=rev(1.8, 0.25, 0.5))
+    seq.add_track("gong", ak.instrument(ak.gong, dur=3.5, freq=96.0),
+                  merge(hits([0.0], 1.0, .85), notes([(6.0, 130.0, 1.0)], .55)), volume=0.55, pan=-0.1)
+    seq.add_track("taiko_low", ak.instrument(ak.taiko, kind="low"),
+                  hits([0.0, 1.0, 2.0, 3.0], 0.5, .8) + hits([4.0, 6.0], 0.5, 1.0), volume=0.65)
+    seq.add_track("taiko_mid", ak.instrument(ak.taiko, kind="mid"),
+                  hits([2.5, 2.75, 3.25, 3.5, 3.75], 0.25, .6) + hits([5.0, 5.5], 0.25, .5), volume=0.5, pan=0.15)
+    seq.add_track("block", ak.instrument(ak.wood_block, pitch=1100), hits([0.5, 1.5, 2.5, 3.5, 4.5, 5.5], 0.25, .5),
+                  volume=0.35, pan=0.35)
+    seq.master_fx.append(lp(13000))
+    return save_sting(seq, "Victory", audio_root, tmp_dir, fade_out=1.2)
+
+
+# ==========================================================================================
+# GameOver  --  ~8 s sting (non-loop): low gong, descending D minor pentatonic erhu phrase
+# echoed by low zither, low temple bell, dark pad; long cosine fade-out.
+# ==========================================================================================
+def build_gameover(audio_root: str, tmp_dir: str) -> str:
+    seq = ak.Sequencer(60)
+    seq.add_track("gong", ak.instrument(ak.gong, dur=5.0, freq=70.0, shimmer=0.7), hits([0.0], 1.0, .85), volume=0.6, pan=0.0)
+    er = notes([(0.5, "A4", 1.0), (1.5, "G4", 1.0), (2.5, "F4", 1.0), (3.5, "D4", 1.5), (5.25, "C4", 0.75), (6.0, "A3", 2.0)], 0.9)
+    seq.add_track("erhu", ak.instrument(ak.erhu, vib_depth=0.5, vib_rate=4.4, glide=0.12, release=0.6), er, volume=0.6, pan=0.1,
+                  fx=rev(2.8, 0.3, 0.5))
+    z = notes([(1.0, "D4", 1.0), (2.0, "C4", 1.0), (3.0, "A3", 1.0), (4.0, "D3", 1.5), (5.5, "A2", 1.0), (6.5, "D2", 2.0)], 0.6)
+    seq.add_track("zither", ak.instrument(ak.zither, bright=0.35, release=1.5), z, volume=0.6, pan=-0.25, fx=rev(2.5, 0.3, 0.5))
+    seq.add_track("bell", ak.instrument(ak.temple_bell, freq=146.8, dur=5.0), hits([5.0], 1.0, .5), volume=0.5, pan=0.2)
+    seq.add_track("pad", ak.instrument(ak.pad_synth, attack=1.5, release=2.0, cutoff=500.0), notes([(0.0, ["D2", "A2"], 7.0)], .6),
+                  volume=1.0)
+    seq.add_track("taiko", ak.instrument(ak.taiko, kind="low"), hits([4.0], 1.0, .7), volume=0.5, fx=rev(2.0, 0.3, 0.7))
+    seq.master_fx.append(lp(10000))
+    return save_sting(seq, "GameOver", audio_root, tmp_dir, fade_out=2.0)
+
+
+# ==========================================================================================
+BUILDERS = [("Town", build_town), ("World", build_world), ("Battle", build_battle),
+            ("Mountain", build_mountain), ("Cave", build_cave), ("Sect", build_sect),
+            ("Dark", build_dark), ("Night", build_night), ("Demon", build_demon),
+            ("Title", build_title), ("Victory", build_victory), ("GameOver", build_gameover)]
+
+
+def build(audio_root: str, tmp_dir: str) -> list:
+    """Write every music cue; returns the absolute paths written."""
+    ak.seed(0)
+    os.makedirs(os.path.join(audio_root, "Music"), exist_ok=True)
+    os.makedirs(tmp_dir, exist_ok=True)
+    out = []
+    for name, fn in BUILDERS:
+        ak.seed(0)
+        out.append(os.path.abspath(fn(audio_root, tmp_dir)))
+    return out
+
+
+if __name__ == "__main__":
+    root = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.dirname(HERE)), "Assets", "InkPixel", "Audio")
+    tmp = sys.argv[2] if len(sys.argv) > 2 else os.path.join(os.path.dirname(root), "_music_tmp")
+    for p in build(root, tmp):
+        print(p)
